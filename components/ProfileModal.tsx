@@ -1,19 +1,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { UserProfile } from '../types';
-import { IconX, IconSettings, IconPlusCircle } from './Icons';
+import type { UserProfile, Post } from '../types';
+import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle } from './Icons';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   userProfile: UserProfile;
+  userPosts: Post[];
   onUpdateProfile: (newProfile: Pick<UserProfile, 'name' | 'bio'>) => void;
   onOpenSettings: () => void;
   onAddStory: (storyFile: File) => void;
   onOpenStoryViewer: () => void;
+  onSelectPost: (post: Post) => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, onUpdateProfile, onOpenSettings, onAddStory, onOpenStoryViewer }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, userPosts, onUpdateProfile, onOpenSettings, onAddStory, onOpenStoryViewer, onSelectPost }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile.name);
   const [bio, setBio] = useState(userProfile.bio);
@@ -62,9 +64,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
     >
       <div 
         ref={modalRef}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 animate-fade-in-up"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col transform transition-all duration-300 animate-fade-in-up"
       >
-        <div className="p-6 relative">
+        <div className="p-6 pb-0">
           <div className="flex justify-between items-center mb-6">
              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Seu Perfil</h2>
              <div className="flex items-center space-x-2">
@@ -152,6 +154,34 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
             </div>
           </div>
         </div>
+        
+        <div className="flex-1 overflow-y-auto mt-6 p-6 pt-0">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 border-t border-gray-200 dark:border-gray-700 pt-4">Postagens</h3>
+            {userPosts.length > 0 ? (
+                <div className="grid grid-cols-3 gap-1 mt-4">
+                    {userPosts.map(post => (
+                    <button key={post.id} onClick={() => onSelectPost(post)} className="aspect-square relative group bg-gray-200 dark:bg-gray-700 rounded-sm">
+                        <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                            <div className="flex items-center space-x-4 text-sm">
+                                <div className="flex items-center space-x-1">
+                                    <IconHeart className="w-4 h-4" fill="white" />
+                                    <span>{post.likes}</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                    <IconMessageCircle className="w-4 h-4" />
+                                    <span>{post.comments}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </button>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-center text-gray-500 dark:text-gray-400 mt-4">Nenhuma postagem ainda.</p>
+            )}
+        </div>
+
       </div>
        <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

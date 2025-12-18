@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseService';
 import * as db from '../services/supabaseService';
 import type { LiveSession, UserProfile, LiveComment, User, LiveSessionWithHost } from '../types';
-import { IconX, IconSend, IconUsers } from './Icons';
+import { IconX, IconSend, IconUsers, IconVolume2, IconVolumeX } from './Icons';
 import { LiveIndicator } from './LiveIndicator';
 
 // Helper functions for audio processing
@@ -35,7 +35,8 @@ interface LiveAudioModalProps {
 }
 
 const SAMPLE_RATE = 16000;
-const CHUNK_SIZE = 4096;
+// Reduced chunk size for lower latency. This sends smaller packets more frequently.
+const CHUNK_SIZE = 2048;
 
 export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose, session, currentUser, role }) => {
   const [comments, setComments] = useState<LiveComment[]>([]);
@@ -43,18 +44,26 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const [viewerCount, setViewerCount] = useState(1);
   const [isLive, setIsLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [volume, setVolume] = useState(1);
   
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
   const playbackQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const nextStartTimeRef = useRef(0);
   const channelRef = useRef<any>(null);
 
   const host = 'host' in session ? session.host : currentUser;
+
+  useEffect(() => {
+    if (gainNodeRef.current) {
+        gainNodeRef.current.gain.value = volume;
+    }
+  }, [volume]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -64,7 +73,6 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     });
     channelRef.current = channel;
 
-    // --- Realtime Subscriptions ---
     channel.on('postgres_changes', { 
         event: 'INSERT', 
         schema: 'public', 
@@ -82,12 +90,10 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         setComments(prev => [...prev, formattedComment]);
       });
 
-    // --- Presence for Viewer Count ---
     channel.on('presence', { event: 'sync' }, () => {
       setViewerCount(Object.keys(channel.presenceState()).length);
     });
 
-    // --- Listener: Audio Chunk Receiver ---
     if (role === 'listener') {
       channel.on('broadcast', { event: 'audioChunk' }, ({ payload }) => {
         const decodedData = decode(payload.chunk);
@@ -119,7 +125,6 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
       }
     });
     
-    // --- Host: Start Broadcasting Audio ---
     const startBroadcasting = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -145,7 +150,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         };
         
         sourceRef.current.connect(scriptProcessorRef.current);
-        scriptProcessorRef.current.connect(context.destination); // Connect to destination to keep the processing alive
+        scriptProcessorRef.current.connect(context.destination);
 
       } catch (err) {
         console.error("Error starting broadcast:", err);
@@ -154,14 +159,17 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
       }
     };
 
-    // --- Listener: Setup Playback ---
     const setupPlayback = () => {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+        const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+        gainNodeRef.current = context.createGain();
+        gainNodeRef.current.gain.value = volume;
+        gainNodeRef.current.connect(context.destination);
+        audioContextRef.current = context;
         nextStartTimeRef.current = 0;
     };
 
     const schedulePlayback = () => {
-        if (playbackQueueRef.current.length === 0 || !audioContextRef.current) {
+        if (playbackQueueRef.current.length === 0 || !audioContextRef.current || !gainNodeRef.current) {
             isPlayingRef.current = false;
             return;
         }
@@ -169,7 +177,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         const audioBuffer = playbackQueueRef.current.shift()!;
         const source = audioContextRef.current.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(audioContextRef.current.destination);
+        source.connect(gainNodeRef.current);
         
         const currentTime = audioContextRef.current.currentTime;
         const startTime = Math.max(currentTime, nextStartTimeRef.current);
@@ -242,6 +250,20 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
                     <p className="text-gray-400">{role === 'host' ? 'Sua voz está sendo transmitida.' : 'Conectado à transmissão.'}</p>
                  </div>
              )}
+             {role === 'listener' && isLive && (
+                <div className="absolute bottom-4 right-4 bg-black/40 p-2 rounded-full flex items-center space-x-2">
+                    {volume > 0 ? <IconVolume2 className="w-5 h-5 text-white" /> : <IconVolumeX className="w-5 h-5 text-white" />}
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={volume}
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        className="w-24 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+             )}
         </div>
 
         <div className="h-1/3 flex flex-col mt-4">
@@ -280,6 +302,27 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
           to { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+        
+        /* Custom range slider style */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -6px; /* You need to specify a margin in Chrome, but in Firefox and IE it is automatic */
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 2px;
+            cursor: pointer;
+            background: #4f46e5; /* indigo-500 */
+        }
       `}</style>
     </div>
   );

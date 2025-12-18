@@ -13,7 +13,7 @@ interface StoryFromSupabase {
     created_at: string;
 }
 
-const formatPost = (post: any): Post => ({
+export const formatPost = (post: any): Post => ({
     id: post.id,
     caption: post.caption,
     imageUrl: post.image_url,

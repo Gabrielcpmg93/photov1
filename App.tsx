@@ -12,6 +12,7 @@ import { LiveAudioModal } from './components/LiveAudioModal';
 import * as db from './services/supabaseService';
 import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
+import { supabase } from './services/supabaseService';
 
 // Since there is no auth, we'll hardcode the user ID.
 // In a real app, this would come from the authenticated user session.
@@ -66,6 +67,30 @@ function App() {
   useEffect(() => {
     loadAppDate();
   }, [loadAppDate]);
+
+  // Real-time subscription for new posts
+  useEffect(() => {
+    const channel = supabase.channel('public:posts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, 
+      (payload) => {
+        const newPost = db.formatPost(payload.new);
+        // Add post to state
+        setPosts(currentPosts => [newPost, ...currentPosts]);
+
+        // Trigger notification if enabled and the post is from another user
+        if (appSettings.pushNotifications && userProfile && newPost.user.name !== userProfile.name) {
+          showNotification(`Nova postagem de ${newPost.user.name}`, {
+            body: newPost.caption.substring(0, 100),
+            icon: newPost.imageUrl,
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [appSettings.pushNotifications, userProfile]);
 
   useEffect(() => {
     if (appSettings.darkMode) {
@@ -135,6 +160,14 @@ function App() {
     setSelectedPost({ ...post, commentList: comments as Comment[]});
   }, []);
 
+  const handleSelectPostFromProfile = useCallback((post: Post) => {
+    closeProfileModal();
+    // Use a timeout to ensure the profile modal has finished its closing animation
+    setTimeout(() => {
+      handleSelectPost(post);
+    }, 300);
+  }, [handleSelectPost]);
+
   const handleClosePostDetail = useCallback(() => {
     setSelectedPost(null);
   }, []);
@@ -190,7 +223,8 @@ function App() {
 
     const newPost = await db.createPost(newPostData, userProfile);
     if(newPost) {
-        setPosts(prevPosts => [newPost as Post, ...prevPosts]);
+        // The real-time listener will add the post, so we don't add it twice.
+        // setPosts(prevPosts => [newPost as Post, ...prevPosts]); 
         if (appSettings.pushNotifications) {
           showNotification('Nova Postagem Criada!', {
             body: `Sua postagem "${newPost.caption.substring(0, 30)}..." foi publicada.`,
@@ -248,8 +282,21 @@ function App() {
 
   const handleUpdateSettings = useCallback((newSettings: AppSettings) => {
     if (newSettings.pushNotifications && !appSettings.pushNotifications) {
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
+      if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              setAppSettings(newSettings);
+              showNotification('Notificações Ativadas!', { body: 'Você agora receberá atualizações.' });
+            } else {
+              // User denied permission, don't update the setting state
+            }
+          });
+          return; // prevent setting state immediately
+        } else if (Notification.permission === 'denied') {
+          alert('As notificações foram bloqueadas. Você precisa permitir nas configurações do seu navegador para ativar este recurso.');
+          return; // Do not update settings if permission is denied
+        }
       }
     }
     setAppSettings(newSettings);
@@ -265,6 +312,8 @@ function App() {
         </div>
     )
   }
+
+  const userPosts = userProfile ? posts.filter(p => p.user.name === userProfile.name) : [];
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
@@ -299,10 +348,12 @@ function App() {
             isOpen={isProfileModalOpen}
             onClose={closeProfileModal}
             userProfile={userProfile}
+            userPosts={userPosts}
             onUpdateProfile={handleUpdateProfile}
             onOpenSettings={openSettingsModal}
             onAddStory={handleAddStory}
             onOpenStoryViewer={openStoryViewer}
+            onSelectPost={handleSelectPostFromProfile}
         />
       )}
        <SettingsModal
