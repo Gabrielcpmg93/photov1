@@ -7,6 +7,7 @@ import { IconX, IconSend, IconUsers, IconVolume2, IconVolumeX, IconMic, IconMicO
 import { LiveIndicator } from './LiveIndicator';
 import { ListenersPanel } from './ListenersPanel';
 import { InvitationToast } from './InvitationToast';
+import { RequestToSpeakModal } from './RequestToSpeakModal';
 
 type Participant = { id: string; name: string; avatarUrl: string; is_speaking?: boolean };
 type Role = 'host' | 'speaker' | 'listener';
@@ -58,6 +59,8 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const [invitedUserIds, setInvitedUserIds] = useState<Set<string>>(new Set());
   const [showListenersPanel, setShowListenersPanel] = useState(false);
   const [pendingInvitation, setPendingInvitation] = useState<Participant | null>(null);
+  const [requestToSpeak, setRequestToSpeak] = useState<Participant | null>(null);
+  const [requestSent, setRequestSent] = useState(false);
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -67,7 +70,6 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const gainNodeRef = useRef<GainNode | null>(null);
   const channelRef = useRef<any>(null);
 
-  // Use a map to handle playback for multiple speakers
   const playbackStateRef = useRef(new Map<string, { queue: AudioBuffer[], isPlaying: boolean, nextStartTime: number }>());
 
   const host = 'host' in initialSession ? initialSession.host : currentUser;
@@ -75,12 +77,11 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
 
   const isCurrentUserSpeaker = currentRole === 'host' || currentRole === 'speaker';
   
-  // --- Audio Broadcasting and Playback Logic ---
   const stopBroadcasting = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach(track => track.stop());
     sourceRef.current?.disconnect();
     scriptProcessorRef.current?.disconnect();
-    audioContextRef.current?.close();
+    audioContextRef.current?.close().catch(() => {});
     mediaStreamRef.current = null;
     scriptProcessorRef.current = null;
     sourceRef.current = null;
@@ -88,7 +89,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   }, []);
 
   const startBroadcasting = useCallback(async () => {
-    if (mediaStreamRef.current) return; // Already broadcasting
+    if (mediaStreamRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -100,7 +101,11 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
       scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
         if (isMicMuted) return;
         const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-        const int16 = new Int16Array(inputData.buffer);
+        const l = inputData.length;
+        const int16 = new Int16Array(l);
+        for (let i = 0; i < l; i++) {
+            int16[i] = inputData[i] < 0 ? inputData[i] * 32768 : inputData[i] * 32767;
+        }
         const encodedChunk = encode(new Uint8Array(int16.buffer));
         channelRef.current.send({
           type: 'broadcast', event: 'audio-chunk',
@@ -137,7 +142,6 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     source.onended = () => schedulePlayback(speakerId);
   }, []);
 
-  // --- Effect for handling role changes ---
   useEffect(() => {
     if (isCurrentUserSpeaker) {
       startBroadcasting();
@@ -146,12 +150,9 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     }
   }, [isCurrentUserSpeaker, startBroadcasting, stopBroadcasting]);
 
-
-  // --- Main useEffect for Supabase Channel ---
   useEffect(() => {
     if (!isOpen) return;
 
-    // Initialize audio context for playback
     const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: SAMPLE_RATE });
     gainNodeRef.current = context.createGain();
     gainNodeRef.current.connect(context.destination);
@@ -180,24 +181,19 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
 
         if (payload.userId === currentUser.id) {
             setCurrentRole(payload.newRole);
+            if (payload.newRole === 'speaker') {
+                setRequestSent(false);
+            }
         }
     };
 
     channel
       .on('presence', { event: 'sync' }, () => {
         const presenceState = channel.presenceState();
-        const participants: Participant[] = Object.entries(presenceState).map(([_, val]: any) => ({
-            id: val[0].user_id,
-            name: val[0].name,
-            avatarUrl: val[0].avatar_url,
+        const allUsersInRoom: Participant[] = Object.entries(presenceState).map(([_, val]: any) => ({
+            id: val[0].user_id, name: val[0].name, avatarUrl: val[0].avatar_url,
         }));
-        // Host is always a speaker
-        const currentSpeakers = speakers.length > 0 ? speakers : [{ id: hostId, name: host.name, avatarUrl: host.avatarUrl }];
-        const speakerIds = new Set(currentSpeakers.map(s => s.id));
-        
-        setSpeakers(participants.filter(p => speakerIds.has(p.id)));
-        setListeners(participants.filter(p => !speakerIds.has(p.id)));
-        setViewerCount(participants.length);
+        setViewerCount(allUsersInRoom.length);
       })
       .on('broadcast', { event: 'audio-chunk' }, ({ payload }) => {
           if (!playbackStateRef.current.has(payload.senderId)) {
@@ -209,17 +205,18 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
           
           if (!audioContextRef.current) return;
           const audioBuffer = audioContextRef.current.createBuffer(1, dataInt16.length, SAMPLE_RATE);
-          audioBuffer.getChannelData(0).set(dataInt16.map(v => v / 32768.0));
+          audioBuffer.getChannelData(0).set(new Float32Array(dataInt16).map(v => v / 32768.0));
 
           speakerState.queue.push(audioBuffer);
-          if (!speakerState.isPlaying) {
-            schedulePlayback(payload.senderId);
-          }
+          if (!speakerState.isPlaying) schedulePlayback(payload.senderId);
       })
       .on('broadcast', { event: 'invite-to-speak' }, ({ payload }) => {
-        if (payload.userId === currentUser.id) {
-            setPendingInvitation(payload.inviter);
-        }
+        if (payload.userId === currentUser.id) setPendingInvitation(payload.inviter);
+      })
+      .on('broadcast', { event: 'request-to-speak' }, ({ payload }) => {
+          if (currentRole === 'host') {
+              setRequestToSpeak(payload.requester);
+          }
       })
       .on('broadcast', { event: 'role-change' }, ({ payload }) => {
         handleRoleChange(payload);
@@ -227,12 +224,8 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           setIsLive(true);
-          await channel.track({
-            user_id: currentUser.id, name: currentUser.name, avatar_url: currentUser.avatarUrl
-          });
-          if (initialRole === 'host') {
-            setSpeakers([{ id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl }]);
-          }
+          await channel.track({ user_id: currentUser.id, name: currentUser.name, avatar_url: currentUser.avatarUrl });
+          if (initialRole === 'host') setSpeakers([{ id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl }]);
         }
       });
     
@@ -261,19 +254,13 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   };
   
   const sendRoleChange = (userId: string, newRole: Role) => {
-    channelRef.current?.send({
-      type: 'broadcast', event: 'role-change',
-      payload: { userId, newRole },
-    });
+    channelRef.current?.send({ type: 'broadcast', event: 'role-change', payload: { userId, newRole } });
   };
 
   const handleInvite = (user: Participant) => {
     if(speakers.length > MAX_SPEAKERS) return;
     setInvitedUserIds(prev => new Set(prev).add(user.id));
-    channelRef.current?.send({
-        type: 'broadcast', event: 'invite-to-speak',
-        payload: { userId: user.id, inviter: {id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl}},
-    });
+    channelRef.current?.send({ type: 'broadcast', event: 'invite-to-speak', payload: { userId: user.id, inviter: {id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl}}});
   };
 
   const handleInvitationAccept = () => {
@@ -282,9 +269,21 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     setPendingInvitation(null);
   };
   
-  const handleRemoveSpeaker = (speakerId: string) => {
-    sendRoleChange(speakerId, 'listener');
+  const handleRemoveSpeaker = (speakerId: string) => { sendRoleChange(speakerId, 'listener'); };
+
+  const handleRequestToSpeak = () => {
+      if (currentRole !== 'listener' || requestSent || speakers.length > MAX_SPEAKERS) return;
+      setRequestSent(true);
+      channelRef.current?.send({ type: 'broadcast', event: 'request-to-speak', payload: { requester: { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl } } });
   };
+
+  const handleAcceptRequest = () => {
+      if (!requestToSpeak) return;
+      sendRoleChange(requestToSpeak.id, 'speaker');
+      setRequestToSpeak(null);
+  };
+
+  const handleDeclineRequest = () => { setRequestToSpeak(null); };
 
   if (!isOpen) return null;
   
@@ -299,23 +298,12 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
             <div className="flex items-center space-x-4">
-                <div className="relative">
-                    <img src={host.avatarUrl} alt={host.name} className="w-12 h-12 rounded-full" />
-                    <div className="absolute -bottom-1 -right-1"><LiveIndicator /></div>
-                </div>
-                <div>
-                    <h2 className="text-xl font-bold text-white">{host.name}</h2>
-                    <p className="text-gray-400">Sala de áudio</p>
-                </div>
+                <div className="relative"><img src={host.avatarUrl} alt={host.name} className="w-12 h-12 rounded-full" /><div className="absolute -bottom-1 -right-1"><LiveIndicator /></div></div>
+                <div><h2 className="text-xl font-bold text-white">{host.name}</h2><p className="text-gray-400">Sala de áudio</p></div>
             </div>
              <div className="flex items-center space-x-4">
-                <button onClick={() => setShowListenersPanel(true)} className="flex items-center space-x-2 bg-black/30 px-3 py-1 rounded-full">
-                    <IconUsers className="w-5 h-5 text-white" />
-                    <span className="text-white font-semibold">{viewerCount}</span>
-                </button>
-                <button onClick={onClose} className="text-gray-300 hover:text-white bg-black/30 p-2 rounded-full">
-                    <IconX className="w-6 h-6" />
-                </button>
+                <button onClick={() => setShowListenersPanel(true)} className="flex items-center space-x-2 bg-black/30 px-3 py-1 rounded-full"><IconUsers className="w-5 h-5 text-white" /><span className="text-white font-semibold">{viewerCount}</span></button>
+                <button onClick={onClose} className="text-gray-300 hover:text-white bg-black/30 p-2 rounded-full"><IconX className="w-6 h-6" /></button>
             </div>
         </div>
 
@@ -326,24 +314,21 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
                     {speaker.avatarUrl ? (
                          <div className="relative">
                             <img src={speaker.avatarUrl} alt={speaker.name} className="w-24 h-24 rounded-full border-4 border-indigo-500" />
-                            {currentRole === 'host' && speaker.id !== currentUser.id && (
-                                <button onClick={() => handleRemoveSpeaker(speaker.id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"><IconX className="w-4 h-4"/></button>
-                            )}
-                            {isCurrentUserSpeaker && speaker.id === currentUser.id && (
-                               <button onClick={() => setIsMicMuted(m => !m)} className="absolute bottom-0 right-0 bg-gray-700 text-white rounded-full p-2">{isMicMuted ? <IconMicOff className="w-5 h-5" /> : <IconMic className="w-5 h-5"/>}</button>
-                            )}
+                            {currentRole === 'host' && speaker.id !== currentUser.id && (<button onClick={() => handleRemoveSpeaker(speaker.id)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"><IconX className="w-4 h-4"/></button>)}
+                            {isCurrentUserSpeaker && speaker.id === currentUser.id && (<button onClick={() => setIsMicMuted(m => !m)} className="absolute bottom-0 right-0 bg-gray-700 text-white rounded-full p-2">{isMicMuted ? <IconMicOff className="w-5 h-5" /> : <IconMic className="w-5 h-5"/>}</button>)}
                         </div>
                     ) : (
-                        <div className="w-24 h-24 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center">
-                           <IconMic className="w-8 h-8 text-gray-600" />
-                        </div>
+                        <button onClick={handleRequestToSpeak} disabled={currentRole !== 'listener' || requestSent || speakers.length > MAX_SPEAKERS} className="w-24 h-24 rounded-full border-2 border-dashed border-gray-600 flex flex-col items-center justify-center text-gray-500 hover:border-indigo-500 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-700">
+                           <IconMic className="w-8 h-8" />
+                           <span className="text-xs mt-1 font-semibold">{currentRole === 'listener' ? (requestSent ? 'Solicitado' : 'Pedir pra Falar') : 'Vazio'}</span>
+                        </button>
                     )}
                     <p className="mt-2 text-white font-semibold truncate w-full">{speaker.name}</p>
                 </div>
             ))}
         </div>
         
-        {/* Controls and Comments */}
+        {/* Comments */}
         <div className="flex-1 flex flex-col mt-4 min-h-0">
              <div className="flex-1 bg-black/30 rounded-t-2xl p-4 overflow-y-auto space-y-3">
                  {comments.map(c => <div key={c.id} className="flex items-start animate-fade-in-up"><img src={c.user.avatarUrl} alt={c.user.name} className="w-8 h-8 rounded-full mr-3" /><div><p className="font-semibold text-indigo-300 text-sm">{c.user.name}</p><p className="text-white">{c.text}</p></div></div>)}
@@ -353,11 +338,9 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         </div>
       </div>
       
-      {/* Listeners Panel */}
       <ListenersPanel isOpen={showListenersPanel} onClose={() => setShowListenersPanel(false)} listeners={listeners} invitedIds={invitedUserIds} onInvite={handleInvite} canInvite={currentRole === 'host' && speakers.length <= MAX_SPEAKERS} />
-
-      {/* Invitation Toast */}
-      {pendingInvitation && <InvitationToast inviter={pendingInvitation} onAccept={handleInvitationAccept} onDecline={() => setPendingInvitation(null)} />}
+      <InvitationToast inviter={pendingInvitation} onAccept={handleInvitationAccept} onDecline={() => setPendingInvitation(null)} />
+      <RequestToSpeakModal isOpen={!!requestToSpeak} user={requestToSpeak} onAccept={handleAcceptRequest} onDecline={handleDeclineRequest} />
 
       <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .3s ease-out forwards}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}`}</style>
     </div>
