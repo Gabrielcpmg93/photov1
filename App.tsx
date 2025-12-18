@@ -94,28 +94,30 @@ function App() {
 
   // Real-time subscription for live sessions
   useEffect(() => {
-    const handleNewSession = async (payload: any) => {
-        const newSessionWithHost = await db.getLiveSessionById(payload.new.id);
-        if (newSessionWithHost) {
-            setActiveLiveSessions(prev => [newSessionWithHost, ...prev.filter(s => s.id !== newSessionWithHost.id)]);
-        }
-    };
-    
-    const handleSessionUpdate = async (payload: any) => {
+    const handleSessionChange = async (payload: any) => {
         const sessionData = payload.new;
+
+        // If session is no longer live, remove it.
         if (!sessionData.is_live) {
             setActiveLiveSessions(prev => prev.filter(s => s.id !== sessionData.id));
-        } else {
-            const updatedSessionWithHost = await db.getLiveSessionById(sessionData.id);
-            if (updatedSessionWithHost) {
-                setActiveLiveSessions(prev => prev.map(s => s.id === updatedSessionWithHost.id ? updatedSessionWithHost : s));
-            }
+            return;
+        }
+
+        // If session is live (new or updated), fetch details and upsert into state.
+        const sessionWithHost = await db.getLiveSessionById(sessionData.id);
+        if (sessionWithHost) {
+            setActiveLiveSessions(prev => {
+                // Filter out the old version of the session to prevent duplicates.
+                const otherSessions = prev.filter(s => s.id !== sessionWithHost.id);
+                // Prepend the new/updated session to keep it at the front.
+                return [sessionWithHost, ...otherSessions];
+            });
         }
     };
 
     const liveSessionsChannel = supabase.channel('public:live_sessions')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_sessions' }, handleNewSession)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions' }, handleSessionUpdate)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_sessions' }, handleSessionChange)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions' }, handleSessionChange)
       .subscribe();
 
     return () => {
