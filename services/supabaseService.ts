@@ -45,7 +45,7 @@ export const getPosts = async () => {
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error('Error fetching posts:', error);
+        console.error('Error fetching posts:', error.message);
         return [];
     }
     return data.map(formatPost);
@@ -59,7 +59,7 @@ export const getUserProfile = async (userId: string) => {
         .single();
     
     if (error) {
-        console.error('Error fetching profile:', error);
+        console.error('Error fetching profile:', error.message);
         return null;
     }
     return formatProfile(data);
@@ -73,7 +73,7 @@ export const getCommentsForPost = async (postId: string) => {
         .order('created_at', { ascending: false });
     
     if (error) {
-        console.error('Error fetching comments:', error);
+        console.error('Error fetching comments:', error.message);
         return [];
     }
     return data.map(formatComment);
@@ -84,7 +84,7 @@ const uploadFile = async (bucket: string, file: File) => {
     const { error: uploadError } = await supabase.storage.from(bucket).upload(fileName, file);
 
     if (uploadError) {
-        console.error(`Error uploading file to ${bucket}:`, uploadError);
+        console.error(`Error uploading file to ${bucket}:`, uploadError.message);
         return null;
     }
 
@@ -111,7 +111,7 @@ export const createPost = async (postData: NewPost, user: UserProfile) => {
         .single();
 
     if (error) {
-        console.error('Error creating post:', error);
+        console.error('Error creating post:', error.message);
         return null;
     }
 
@@ -131,7 +131,7 @@ export const addComment = async (postId: string, text: string, user: User) => {
         .single();
     
     if (error) {
-        console.error('Error adding comment:', error);
+        console.error('Error adding comment:', error.message);
         return null;
     }
     // Manually increment comments_count on the post
@@ -150,7 +150,7 @@ export const toggleLike = async (postId: string, newLikesCount: number) => {
         .single();
     
     if(error) {
-        console.error('Error toggling like:', error);
+        console.error('Error toggling like:', error.message);
         return null;
     }
     return formatPost(data);
@@ -165,7 +165,7 @@ export const updateUserProfile = async (userId: string, profileData: Pick<UserPr
         .single();
     
     if(error) {
-        console.error('Error updating profile:', error);
+        console.error('Error updating profile:', error.message);
         return null;
     }
     return formatProfile(data);
@@ -183,7 +183,7 @@ export const setStory = async (userId: string, storyFile: File) => {
         .single();
     
     if(error) {
-        console.error('Error setting story:', error);
+        console.error('Error setting story:', error.message);
         return null;
     }
     return formatProfile(data);
