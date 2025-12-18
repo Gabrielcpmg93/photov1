@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { PostCard } from './PostCard';
-import type { Post, LiveSessionWithHost } from '../types';
+import type { Post, LiveSessionWithHost, UserProfile } from '../types';
 import { LiveSessionsBar } from './LiveSessionsBar';
 
 interface FeedProps {
@@ -9,9 +9,11 @@ interface FeedProps {
   liveSessions: LiveSessionWithHost[];
   onPostClick: (post: Post) => void;
   onJoinLive: (session: LiveSessionWithHost) => void;
+  currentUser: UserProfile | null;
+  onDeletePost: (postId: string, imageUrl: string) => void;
 }
 
-export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, onJoinLive }) => {
+export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, onJoinLive, currentUser, onDeletePost }) => {
   return (
     <>
       {liveSessions.length > 0 && (
@@ -29,7 +31,13 @@ export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, on
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {posts.map(post => (
-            <PostCard key={post.id} post={post} onClick={onPostClick} />
+            <PostCard 
+              key={post.id} 
+              post={post} 
+              onClick={onPostClick} 
+              currentUser={currentUser}
+              onDeletePost={onDeletePost}
+            />
           ))}
         </div>
       )}

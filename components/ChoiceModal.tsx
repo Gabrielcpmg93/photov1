@@ -1,5 +1,5 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { IconCamera, IconMic, IconX } from './Icons';
 
 interface ChoiceModalProps {
@@ -11,6 +11,17 @@ interface ChoiceModalProps {
 
 export const ChoiceModal: React.FC<ChoiceModalProps> = ({ isOpen, onClose, onSelectPost, onSelectLive }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {

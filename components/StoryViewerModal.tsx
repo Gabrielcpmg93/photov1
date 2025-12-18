@@ -45,6 +45,17 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
   }, [isOpen, currentStoryIndex, stories]); // Rerun effect when story changes
 
   useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     // Reset to the first story when the modal is opened
     if (isOpen) {
       setCurrentStoryIndex(0);

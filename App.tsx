@@ -100,17 +100,22 @@ function App() {
             setActiveLiveSessions(prev => [newSessionWithHost, ...prev.filter(s => s.id !== newSessionWithHost.id)]);
         }
     };
+    
+    const handleSessionUpdate = async (payload: any) => {
+        const sessionData = payload.new;
+        if (!sessionData.is_live) {
+            setActiveLiveSessions(prev => prev.filter(s => s.id !== sessionData.id));
+        } else {
+            const updatedSessionWithHost = await db.getLiveSessionById(sessionData.id);
+            if (updatedSessionWithHost) {
+                setActiveLiveSessions(prev => prev.map(s => s.id === updatedSessionWithHost.id ? updatedSessionWithHost : s));
+            }
+        }
+    };
 
     const liveSessionsChannel = supabase.channel('public:live_sessions')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_sessions' }, handleNewSession)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions' }, 
-        (payload) => {
-          // If a session is no longer live, remove it from the active list.
-          if (!payload.new.is_live) {
-            setActiveLiveSessions(prev => prev.filter(s => s.id !== payload.new.id));
-          }
-        }
-      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions' }, handleSessionUpdate)
       .subscribe();
 
     return () => {
@@ -208,13 +213,15 @@ function App() {
     
     const success = await db.deletePost(postId, imageUrl);
     if (success) {
-        handleClosePostDetail();
+        if (selectedPost?.id === postId) {
+            handleClosePostDetail();
+        }
         setPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
         // TODO: Add a success toast/notification
     } else {
         alert('Não foi possível excluir a postagem.');
     }
-  }, [handleClosePostDetail]);
+  }, [selectedPost, handleClosePostDetail]);
 
   const handleToggleLike = useCallback(async (postId: string) => {
     const post = posts.find(p => p.id === postId);
@@ -363,7 +370,14 @@ function App() {
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Header onNewPostClick={openChoiceModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
-        <Feed posts={posts} onPostClick={handleSelectPost} liveSessions={activeLiveSessions} onJoinLive={handleJoinLive} />
+        <Feed 
+          posts={posts} 
+          onPostClick={handleSelectPost} 
+          liveSessions={activeLiveSessions} 
+          onJoinLive={handleJoinLive} 
+          currentUser={userProfile}
+          onDeletePost={handleDeletePost}
+        />
       </main>
 
       <ChoiceModal 
@@ -399,6 +413,7 @@ function App() {
             onAddStory={handleAddStory}
             onOpenStoryViewer={openStoryViewer}
             onSelectPost={handleSelectPostFromProfile}
+            onDeletePost={handleDeletePost}
         />
       )}
        <SettingsModal

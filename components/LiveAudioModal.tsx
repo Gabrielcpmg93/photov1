@@ -62,6 +62,17 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const host = 'host' in initialSession ? initialSession.host : currentUser;
   const isHost = role === 'host';
   
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   const stopBroadcasting = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach(track => track.stop());
     sourceRef.current?.disconnect();

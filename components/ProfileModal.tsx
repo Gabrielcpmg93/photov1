@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Post } from '../types';
-import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle } from './Icons';
+import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconTrash } from './Icons';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -13,9 +13,10 @@ interface ProfileModalProps {
   onAddStory: (storyFile: File) => void;
   onOpenStoryViewer: () => void;
   onSelectPost: (post: Post) => void;
+  onDeletePost: (postId: string, imageUrl: string) => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, userPosts, onUpdateProfile, onOpenSettings, onAddStory, onOpenStoryViewer, onSelectPost }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, userPosts, onUpdateProfile, onOpenSettings, onAddStory, onOpenStoryViewer, onSelectPost, onDeletePost }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile.name);
   const [bio, setBio] = useState(userProfile.bio);
@@ -26,7 +27,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
     if (isOpen) {
       setName(userProfile.name);
       setBio(userProfile.bio);
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
     }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen, userProfile]);
   
   const handleSave = () => {
@@ -51,6 +58,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
     if (file) {
       onAddStory(file);
     }
+  };
+  
+  const handleDelete = (e: React.MouseEvent, post: Post) => {
+    e.stopPropagation();
+    onDeletePost(post.id, post.imageUrl);
   };
 
   const hasStory = !!userProfile.stories && userProfile.stories.length > 0;
@@ -160,9 +172,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
             {userPosts.length > 0 ? (
                 <div className="grid grid-cols-3 gap-1 mt-4">
                     {userPosts.map(post => (
-                    <button key={post.id} onClick={() => onSelectPost(post)} className="aspect-square relative group bg-gray-200 dark:bg-gray-700 rounded-sm">
+                    <div key={post.id} className="aspect-square relative group bg-gray-200 dark:bg-gray-700 rounded-sm">
                         <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                        <div onClick={() => onSelectPost(post)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white cursor-pointer">
                             <div className="flex items-center space-x-4 text-sm">
                                 <div className="flex items-center space-x-1">
                                     <IconHeart className="w-4 h-4" fill="white" />
@@ -174,7 +186,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
                                 </div>
                             </div>
                         </div>
-                    </button>
+                         <button 
+                            onClick={(e) => handleDelete(e, post)}
+                            className="absolute top-1 right-1 z-10 p-1.5 bg-black/50 rounded-full text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                            aria-label="Excluir postagem"
+                          >
+                            <IconTrash className="w-4 h-4" />
+                          </button>
+                    </div>
                     ))}
                 </div>
             ) : (

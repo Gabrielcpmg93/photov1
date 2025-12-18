@@ -1,19 +1,37 @@
 
 import React from 'react';
-import type { Post } from '../types';
-import { IconHeart, IconMessageCircle } from './Icons';
+import type { Post, UserProfile } from '../types';
+import { IconHeart, IconMessageCircle, IconTrash } from './Icons';
 
 interface PostCardProps {
   post: Post;
   onClick: (post: Post) => void;
+  currentUser: UserProfile | null;
+  onDeletePost: (postId: string, imageUrl: string) => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, onDeletePost }) => {
+  const isOwner = currentUser && currentUser.id === post.user_id;
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening the modal
+    onDeletePost(post.id, post.imageUrl);
+  };
+
   return (
-    <button
+    <div
       onClick={() => onClick(post)}
-      className="group relative text-left w-full overflow-hidden rounded-xl shadow-lg bg-white dark:bg-gray-800 break-inside-avoid-column transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 focus:ring-indigo-500"
+      className="group relative text-left w-full overflow-hidden rounded-xl shadow-lg bg-white dark:bg-gray-800 break-inside-avoid-column transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 focus:ring-indigo-500 cursor-pointer"
     >
+       {isOwner && (
+        <button
+          onClick={handleDelete}
+          className="absolute top-2 right-2 z-10 p-2 bg-black/50 rounded-full text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
+          aria-label="Excluir postagem"
+        >
+          <IconTrash className="w-5 h-5" />
+        </button>
+      )}
       <img
         src={post.imageUrl}
         alt={post.caption}
@@ -42,6 +60,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 };
