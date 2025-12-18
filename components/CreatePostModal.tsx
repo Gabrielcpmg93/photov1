@@ -3,12 +3,12 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { generateCaptionForImage } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
 import { IconSparkles, IconX, IconUpload } from './Icons';
-import type { Post } from '../types';
+import type { NewPost } from '../types';
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPostSubmit: (post: Omit<Post, 'id' | 'likes' | 'comments' | 'user'>) => void;
+  onPostSubmit: (post: NewPost) => void;
 }
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose, onPostSubmit }) => {
@@ -69,8 +69,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (previewUrl && caption) {
-      onPostSubmit({ imageUrl: previewUrl, caption });
+    if (imageFile && caption) {
+      onPostSubmit({ imageFile, caption });
     } else {
       setError("Imagem e legenda são necessárias.");
     }

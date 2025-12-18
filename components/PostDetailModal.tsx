@@ -1,16 +1,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import type { Post } from '../types';
+import type { Post, UserProfile } from '../types';
 import { IconX, IconHeart, IconMessageCircle } from './Icons';
 
 interface PostDetailModalProps {
-  post: Post | null;
+  post: Post;
   onClose: () => void;
   onToggleLike: (postId: string) => void;
   onAddComment: (postId: string, commentText: string) => void;
+  currentUser: UserProfile;
 }
 
-export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onToggleLike, onAddComment }) => {
+export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onToggleLike, onAddComment, currentUser }) => {
   const [newComment, setNewComment] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -61,8 +62,8 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
         ref={modalRef}
         className="bg-white dark:bg-gray-900 w-full max-w-5xl h-full max-h-[90vh] rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden animate-fade-in-up"
       >
-        <div className="w-full md:w-2/3 bg-black overflow-auto">
-          <img src={post.imageUrl} alt={post.caption} className="w-full h-auto block" />
+        <div className="w-full md:w-2/3 bg-black flex items-center justify-center">
+          <img src={post.imageUrl} alt={post.caption} className="max-w-full max-h-full object-contain" />
         </div>
         <div className="w-full md:w-1/3 flex flex-col bg-white dark:bg-gray-800">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
@@ -76,7 +77,14 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <p className="text-gray-700 dark:text-gray-300">{post.caption}</p>
+            <div className="flex items-start">
+                 <img src={post.user.avatarUrl} alt={post.user.name} className="w-8 h-8 rounded-full mr-3 mt-1" />
+                 <div>
+                    <span className="font-bold text-sm text-gray-900 dark:text-white">{post.user.name}</span>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{post.caption}</p>
+                 </div>
+            </div>
+
             <hr className="border-gray-200 dark:border-gray-700" />
             <div className="space-y-4">
               {post.commentList && post.commentList.length > 0 ? (
@@ -111,13 +119,14 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
               </div>
             </div>
             <form onSubmit={handleCommentSubmit} className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Adicione um comentário..."
-                className="w-full bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-full py-2 px-4 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-              />
+                <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-8 h-8 rounded-full" />
+                <input
+                    type="text"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Adicione um comentário..."
+                    className="w-full bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white border-transparent rounded-full py-2 px-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                />
               <button type="submit" disabled={!newComment.trim()} className="text-indigo-500 dark:text-indigo-400 font-semibold hover:text-indigo-600 dark:hover:text-indigo-300 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
                 Postar
               </button>

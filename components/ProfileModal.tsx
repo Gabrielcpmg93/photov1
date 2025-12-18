@@ -7,9 +7,9 @@ interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   userProfile: UserProfile;
-  onUpdateProfile: (newProfile: UserProfile) => void;
+  onUpdateProfile: (newProfile: Pick<UserProfile, 'name' | 'bio'>) => void;
   onOpenSettings: () => void;
-  onSetStory: (imageUrl: string) => void;
+  onSetStory: (storyFile: File) => void;
   onOpenStoryViewer: () => void;
 }
 
@@ -28,7 +28,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
   }, [isOpen, userProfile]);
   
   const handleSave = () => {
-    onUpdateProfile({ ...userProfile, name, bio });
+    onUpdateProfile({ name, bio });
     setIsEditing(false);
   };
   
@@ -47,8 +47,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
   const handleStoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      onSetStory(imageUrl);
+      onSetStory(file);
     }
   };
 
@@ -82,7 +81,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
             <div className="relative mb-4">
               <button
                   onClick={hasStory ? onOpenStoryViewer : () => storyInputRef.current?.click()}
-                  className={`p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-purple-500`}
+                  className={`p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 focus:ring-purple-500`}
               >
                   <div className="p-1 bg-white dark:bg-gray-800 rounded-full">
                       <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full" />
@@ -90,7 +89,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
               </button>
               <button
                   onClick={() => storyInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-1 border-2 border-white dark:border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500"
+                  className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-1 border-2 border-white dark:border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 focus:ring-indigo-500"
                   aria-label="Adicionar story"
               >
                   <IconPlusCircle className="w-6 h-6" strokeWidth={2} />

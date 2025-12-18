@@ -7,81 +7,13 @@ import { PostDetailModal } from './components/PostDetailModal';
 import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
-import type { Post, Comment, UserProfile, AppSettings } from './types';
+import * as db from './services/supabaseService';
+import type { Post, Comment, UserProfile, AppSettings, NewPost } from './types';
+import { LoadingSpinner } from './components/LoadingSpinner';
 
-// Add more posts to make the feed scrollable
-const initialPosts: Post[] = [
-  {
-    id: '3',
-    user: { name: 'viajante_sereno', avatarUrl: 'https://picsum.photos/id/1025/100/100' },
-    imageUrl: 'https://picsum.photos/id/1015/800/1200',
-    caption: 'Manhãs tranquilas junto ao lago. A natureza na sua forma mais pura.',
-    likes: 5678,
-    comments: 2,
-    liked: false,
-    commentList: [
-      { id: 'c1', user: { name: 'explorador_urbano', avatarUrl: 'https://picsum.photos/id/1005/100/100' }, text: 'Que lugar incrível! Onde é?' },
-      { id: 'c2', user: { name: 'chef_aventureiro', avatarUrl: 'https://picsum.photos/id/1011/100/100' }, text: 'A foto transmite uma paz imensa. Parabéns!' },
-    ]
-  },
-  {
-    id: '1',
-    user: { name: 'explorador_urbano', avatarUrl: 'https://picsum.photos/id/1005/100/100' },
-    imageUrl: 'https://picsum.photos/id/10/800/1000',
-    caption: 'Explorando a cidade à noite. As luzes de néon contam uma história.',
-    likes: 1024,
-    comments: 88,
-    liked: true,
-    commentList: [],
-  },
-  {
-    id: '2',
-    user: { name: 'chef_aventureiro', avatarUrl: 'https://picsum.photos/id/1011/100/100' },
-    imageUrl: 'https://picsum.photos/id/21/800/600',
-    caption: 'A arte da massa fresca. Simples, mas divino.',
-    likes: 2345,
-    comments: 210,
-    liked: false,
-    commentList: [],
-  },
-  {
-    id: '4',
-    user: { name: 'arquiteto_visionario', avatarUrl: 'https://picsum.photos/id/1027/100/100' },
-    imageUrl: 'https://picsum.photos/id/104/800/600',
-    caption: 'Linhas que se encontram com o céu. A beleza da arquitetura moderna.',
-    likes: 850,
-    comments: 55,
-    liked: false,
-    commentList: [],
-  },
-  {
-    id: '5',
-    user: { name: 'explorador_urbano', avatarUrl: 'https://picsum.photos/id/1005/100/100' },
-    imageUrl: 'https://picsum.photos/id/1040/800/1100',
-    caption: 'Perdido nas montanhas, encontrado na vastidão.',
-    likes: 12000,
-    comments: 983,
-    liked: false,
-    commentList: [],
-  },
-  {
-    id: '6',
-    user: { name: 'viajante_sereno', avatarUrl: 'https://picsum.photos/id/1025/100/100' },
-    imageUrl: 'https://picsum.photos/id/1059/800/900',
-    caption: 'O farol, um guia constante na escuridão.',
-    likes: 3300,
-    comments: 198,
-    liked: true,
-    commentList: [],
-  },
-];
-
-const initialProfile: UserProfile = {
-  name: 'Seu Nome',
-  avatarUrl: 'https://picsum.photos/seed/you/200/200',
-  bio: 'Esta é a sua biografia! Clique em editar para alterá-la.',
-  storyUrl: null,
-};
+// Since there is no auth, we'll hardcode the user ID.
+// In a real app, this would come from the authenticated user session.
+const CURRENT_USER_ID = '3e5b32f9-674b-4c2d-9c3b-2a134a942663';
 
 const initialSettings: AppSettings = {
   darkMode: true,
@@ -102,13 +34,29 @@ const showNotification = (title: string, options: NotificationOptions) => {
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile>(initialProfile);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadAppDate = useCallback(async () => {
+    setIsLoading(true);
+    const [fetchedPosts, fetchedProfile] = await Promise.all([
+        db.getPosts(),
+        db.getUserProfile(CURRENT_USER_ID)
+    ]);
+    setPosts(fetchedPosts as Post[]);
+    setUserProfile(fetchedProfile as UserProfile);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    loadAppDate();
+  }, [loadAppDate]);
 
   useEffect(() => {
     if (appSettings.darkMode) {
@@ -131,112 +79,113 @@ function App() {
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
 
   const openStoryViewer = useCallback(() => {
-    if (userProfile.storyUrl) {
+    if (userProfile?.storyUrl) {
         closeProfileModal();
         setIsStoryViewerOpen(true);
     }
-  }, [userProfile.storyUrl, closeProfileModal]);
+  }, [userProfile?.storyUrl, closeProfileModal]);
   const closeStoryViewer = useCallback(() => setIsStoryViewerOpen(false), []);
 
 
-  const handleSelectPost = useCallback((post: Post) => {
-    const currentPost = posts.find(p => p.id === post.id) || post;
-    setSelectedPost(currentPost);
-  }, [posts]);
+  const handleSelectPost = useCallback(async (post: Post) => {
+    const comments = await db.getCommentsForPost(post.id);
+    setSelectedPost({ ...post, commentList: comments as Comment[]});
+  }, []);
 
   const handleClosePostDetail = useCallback(() => {
     setSelectedPost(null);
   }, []);
 
-  const handleToggleLike = useCallback((postId: string) => {
-    let postToUpdate: Post | undefined;
-    setPosts(prevPosts =>
-      prevPosts.map(p => {
-        if (p.id === postId) {
-          const liked = !p.liked;
-          const likes = liked ? p.likes + 1 : p.likes - 1;
-          const updatedPost = { ...p, liked, likes };
-          if (selectedPost && selectedPost.id === postId) {
-            setSelectedPost(updatedPost);
-          }
-          postToUpdate = updatedPost;
-          return updatedPost;
-        }
-        return p;
-      })
-    );
-     if (appSettings.pushNotifications && postToUpdate && postToUpdate.liked) {
+  const handleToggleLike = useCallback(async (postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    const newLikedState = !post.liked;
+    const newLikesCount = newLikedState ? post.likes + 1 : post.likes - 1;
+
+    // Optimistic update
+    const updatePostsState = (p: Post) => ({ ...p, liked: newLikedState, likes: newLikesCount });
+    setPosts(prev => prev.map(p => p.id === postId ? updatePostsState(p) : p));
+    if (selectedPost?.id === postId) {
+      setSelectedPost(updatePostsState(selectedPost));
+    }
+
+    const updatedPost = await db.toggleLike(postId, newLikesCount);
+    
+    if (appSettings.pushNotifications && newLikedState) {
       showNotification('Postagem Curtida!', {
-        body: `Você curtiu a postagem de ${postToUpdate.user.name}.`,
-        icon: postToUpdate.imageUrl,
+        body: `Você curtiu a postagem de ${post.user.name}.`,
+        icon: post.imageUrl,
       });
     }
-  }, [selectedPost, appSettings.pushNotifications]);
+  }, [posts, selectedPost, appSettings.pushNotifications]);
 
-  const handleAddComment = useCallback((postId: string, commentText: string) => {
-    const newComment: Comment = {
-      id: new Date().toISOString(),
-      user: { name: userProfile.name, avatarUrl: userProfile.avatarUrl },
-      text: commentText,
-    };
-    let postForNotification: Post | undefined;
-    setPosts(prevPosts =>
-      prevPosts.map(p => {
-        if (p.id === postId) {
-          const newCommentList = [newComment, ...(p.commentList || [])];
-          const updatedPost = { ...p, commentList: newCommentList, comments: newCommentList.length };
-          if (selectedPost && selectedPost.id === postId) {
-            setSelectedPost(updatedPost);
-          }
-          postForNotification = updatedPost;
-          return updatedPost;
-        }
-        return p;
-      })
-    );
-    if (appSettings.pushNotifications && postForNotification) {
-      showNotification('Novo Comentário!', {
-        body: `Você comentou: "${commentText}"`,
-        icon: postForNotification.imageUrl,
-      });
+  const handleAddComment = useCallback(async (postId: string, commentText: string) => {
+    if (!userProfile) return;
+    
+    const newComment = await db.addComment(postId, commentText, userProfile);
+    
+    if (newComment && selectedPost) {
+      const updatedCommentList = [newComment, ...(selectedPost.commentList || [])];
+      setSelectedPost({ ...selectedPost, commentList: updatedCommentList, comments: updatedCommentList.length });
+       setPosts(prevPosts => prevPosts.map(p => p.id === postId ? {...p, comments: p.comments + 1} : p));
+
+       if (appSettings.pushNotifications) {
+        showNotification('Novo Comentário!', {
+          body: `Você comentou: "${commentText}"`,
+          icon: selectedPost.imageUrl,
+        });
+      }
     }
   }, [selectedPost, userProfile, appSettings.pushNotifications]);
 
 
-  const addPost = useCallback((newPost: Omit<Post, 'id' | 'likes' | 'comments' | 'user'>) => {
-    const post: Post = {
-      id: new Date().toISOString(),
-      user: { name: userProfile.name, avatarUrl: userProfile.avatarUrl },
-      likes: 0,
-      comments: 0,
-      liked: false,
-      commentList: [],
-      ...newPost
-    };
-    setPosts(prevPosts => [post, ...prevPosts]);
-    if (appSettings.pushNotifications) {
-      showNotification('Nova Postagem Criada!', {
-        body: `Sua postagem "${post.caption.substring(0, 30)}..." foi publicada.`,
-        icon: post.imageUrl,
-      });
-    }
+  const addPost = useCallback(async (newPostData: NewPost) => {
+    if (!userProfile) return;
     closeCreateModal();
+    setIsLoading(true);
+
+    const newPost = await db.createPost(newPostData, userProfile);
+    if(newPost) {
+        setPosts(prevPosts => [newPost as Post, ...prevPosts]);
+        if (appSettings.pushNotifications) {
+          showNotification('Nova Postagem Criada!', {
+            body: `Sua postagem "${newPost.caption.substring(0, 30)}..." foi publicada.`,
+            icon: newPost.imageUrl,
+          });
+        }
+    }
+    setIsLoading(false);
   }, [closeCreateModal, userProfile, appSettings.pushNotifications]);
 
-  const handleUpdateProfile = useCallback((newProfile: UserProfile) => {
-    setUserProfile(newProfile);
-  }, []);
+  const handleUpdateProfile = useCallback(async (newProfileData: Pick<UserProfile, 'name' | 'bio'>) => {
+    if (!userProfile) return;
+    const updatedProfile = await db.updateUserProfile(userProfile.id, newProfileData);
+    if (updatedProfile) {
+        setUserProfile(updatedProfile as UserProfile);
+    }
+  }, [userProfile]);
   
-  const handleSetStory = useCallback((imageUrl: string) => {
-      setUserProfile(prev => ({...prev, storyUrl: imageUrl}));
-      if (appSettings.pushNotifications) {
-        showNotification('Novo Story Adicionado!', {
-            body: 'Seu story foi publicado com sucesso.',
-            icon: imageUrl,
-        });
+  const handleSetStory = useCallback(async (storyFile: File) => {
+      if(!userProfile) return;
+      closeProfileModal();
+      setIsLoading(true);
+      const updatedProfile = await db.setStory(userProfile.id, storyFile);
+      if (updatedProfile) {
+        setUserProfile(updatedProfile as UserProfile);
+         if (appSettings.pushNotifications) {
+            showNotification('Novo Story Adicionado!', {
+                body: 'Seu story foi publicado com sucesso.',
+                icon: updatedProfile.storyUrl!,
+            });
+        }
+        setIsLoading(false);
+        // We need to re-open the story viewer from here after upload
+        setIsStoryViewerOpen(true);
+      } else {
+        setIsLoading(false);
       }
-      openStoryViewer();
-  }, [appSettings.pushNotifications, openStoryViewer]);
+  }, [userProfile, appSettings.pushNotifications, closeProfileModal]);
 
 
   const handleUpdateSettings = useCallback((newSettings: AppSettings) => {
@@ -247,6 +196,17 @@ function App() {
     }
     setAppSettings(newSettings);
   }, [appSettings]);
+  
+  if (isLoading && !selectedPost) {
+    return (
+        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+            <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+                <p className="mt-4 text-gray-600 dark:text-gray-300">Carregando...</p>
+            </div>
+        </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
@@ -259,33 +219,40 @@ function App() {
         onClose={closeCreateModal}
         onPostSubmit={addPost}
       />
-      <PostDetailModal
-        post={selectedPost}
-        onClose={handleClosePostDetail}
-        onToggleLike={handleToggleLike}
-        onAddComment={handleAddComment}
-      />
-      <ProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={closeProfileModal}
-        userProfile={userProfile}
-        onUpdateProfile={handleUpdateProfile}
-        onOpenSettings={openSettingsModal}
-        onSetStory={handleSetStory}
-        onOpenStoryViewer={openStoryViewer}
-      />
+      {selectedPost && userProfile && (
+        <PostDetailModal
+            post={selectedPost}
+            onClose={handleClosePostDetail}
+            onToggleLike={handleToggleLike}
+            onAddComment={handleAddComment}
+            currentUser={userProfile}
+        />
+      )}
+      {userProfile && (
+        <ProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={closeProfileModal}
+            userProfile={userProfile}
+            onUpdateProfile={handleUpdateProfile}
+            onOpenSettings={openSettingsModal}
+            onSetStory={handleSetStory}
+            onOpenStoryViewer={openStoryViewer}
+        />
+      )}
        <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={closeSettingsModal}
         settings={appSettings}
         onUpdateSettings={handleUpdateSettings}
       />
-      <StoryViewerModal
-        isOpen={isStoryViewerOpen}
-        onClose={closeStoryViewer}
-        storyUrl={userProfile.storyUrl}
-        user={userProfile}
-      />
+      {userProfile && (
+        <StoryViewerModal
+            isOpen={isStoryViewerOpen}
+            onClose={closeStoryViewer}
+            storyUrl={userProfile.storyUrl}
+            user={userProfile}
+        />
+      )}
     </div>
   );
 }
