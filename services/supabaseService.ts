@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost, Story } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession, LiveComment } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
@@ -220,5 +220,61 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
         imageUrl: data.image_url,
         createdAt: data.created_at,
         user: user
+    };
+};
+
+// Live Audio Session Functions
+
+export const createLiveSession = async (hostId: string): Promise<LiveSession | null> => {
+    const { data, error } = await supabase
+        .from('live_sessions')
+        .insert({ host_id: hostId, is_live: true })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error creating live session:', error.message);
+        return null;
+    }
+    return data;
+};
+
+export const endLiveSession = async (sessionId: string) => {
+    const { error } = await supabase
+        .from('live_sessions')
+        .update({ is_live: false })
+        .eq('id', sessionId);
+    
+    if (error) {
+        console.error('Error ending live session:', error.message);
+    }
+};
+
+export const addLiveComment = async (sessionId: string, user: User, text: string): Promise<LiveComment | null> => {
+    const { data, error } = await supabase
+        .from('live_comments')
+        .insert({
+            session_id: sessionId,
+            user_name: user.name,
+            user_avatar_url: user.avatarUrl,
+            text
+        })
+        .select()
+        .single();
+    
+    if (error) {
+        console.error('Error adding live comment:', error.message);
+        return null;
+    }
+
+    return {
+        id: data.id,
+        session_id: data.session_id,
+        text: data.text,
+        created_at: data.created_at,
+        user: {
+            name: data.user_name,
+            avatarUrl: data.user_avatar_url
+        }
     };
 };

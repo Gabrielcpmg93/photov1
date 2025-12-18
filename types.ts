@@ -47,3 +47,18 @@ export interface AppSettings {
   emailNotifications: boolean;
   pushNotifications: boolean;
 }
+
+export interface LiveSession {
+  id: string;
+  host_id: string;
+  is_live: boolean;
+  created_at: string;
+}
+
+export interface LiveComment {
+    id: string;
+    session_id: string;
+    user: User;
+    text: string;
+    created_at: string;
+}

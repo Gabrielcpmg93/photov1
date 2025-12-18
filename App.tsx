@@ -7,8 +7,10 @@ import { PostDetailModal } from './components/PostDetailModal';
 import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
+import { ChoiceModal } from './components/ChoiceModal';
+import { LiveAudioModal } from './components/LiveAudioModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 // Since there is no auth, we'll hardcode the user ID.
@@ -34,6 +36,9 @@ const showNotification = (title: string, options: NotificationOptions) => {
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
+  const [isLiveAudioModalOpen, setIsLiveAudioModalOpen] = useState(false);
+  const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -66,7 +71,13 @@ function App() {
     }
   }, [appSettings.darkMode]);
 
-  const openCreateModal = useCallback(() => setIsCreateModalOpen(true), []);
+  const openChoiceModal = useCallback(() => setIsChoiceModalOpen(true), []);
+  const closeChoiceModal = useCallback(() => setIsChoiceModalOpen(false), []);
+  
+  const openCreateModal = useCallback(() => {
+    closeChoiceModal();
+    setIsCreateModalOpen(true);
+  }, []);
   const closeCreateModal = useCallback(() => setIsCreateModalOpen(false), []);
   
   const openProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
@@ -85,6 +96,26 @@ function App() {
     }
   }, [userProfile?.stories, closeProfileModal]);
   const closeStoryViewer = useCallback(() => setIsStoryViewerOpen(false), []);
+
+  const handleStartLive = useCallback(async () => {
+    if (!userProfile) return;
+    closeChoiceModal();
+    setIsLoading(true);
+    const session = await db.createLiveSession(userProfile.id);
+    if (session) {
+      setCurrentLiveSession(session);
+      setIsLiveAudioModalOpen(true);
+    }
+    setIsLoading(false);
+  }, [userProfile]);
+
+  const handleEndLive = useCallback(async () => {
+    if (currentLiveSession) {
+      await db.endLiveSession(currentLiveSession.id);
+    }
+    setIsLiveAudioModalOpen(false);
+    setCurrentLiveSession(null);
+  }, [currentLiveSession]);
 
 
   const handleSelectPost = useCallback(async (post: Post) => {
@@ -212,7 +243,7 @@ function App() {
     setAppSettings(newSettings);
   }, [appSettings]);
   
-  if (isLoading && !selectedPost) {
+  if (isLoading && !selectedPost && !isLiveAudioModalOpen) {
     return (
         <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
             <div className="flex flex-col items-center">
@@ -225,10 +256,18 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
-      <Header onNewPostClick={openCreateModal} onProfileClick={openProfileModal} />
+      <Header onNewPostClick={openChoiceModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
         <Feed posts={posts} onPostClick={handleSelectPost} />
       </main>
+
+      <ChoiceModal 
+        isOpen={isChoiceModalOpen}
+        onClose={closeChoiceModal}
+        onSelectPost={openCreateModal}
+        onSelectLive={handleStartLive}
+      />
+
       <CreatePostModal
         isOpen={isCreateModalOpen}
         onClose={closeCreateModal}
@@ -266,6 +305,14 @@ function App() {
             onClose={closeStoryViewer}
             stories={userProfile.stories}
             user={userProfile}
+        />
+      )}
+      {isLiveAudioModalOpen && currentLiveSession && userProfile && (
+        <LiveAudioModal
+          isOpen={isLiveAudioModalOpen}
+          onClose={handleEndLive}
+          session={currentLiveSession}
+          host={userProfile}
         />
       )}
     </div>
