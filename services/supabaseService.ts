@@ -252,6 +252,36 @@ export const getActiveLiveSessions = async (): Promise<LiveSessionWithHost[]> =>
     }));
 };
 
+export const getLiveSessionById = async (sessionId: string): Promise<LiveSessionWithHost | null> => {
+    const { data, error } = await supabase
+        .from('live_sessions')
+        .select(`
+            *,
+            host:profiles(name, avatar_url)
+        `)
+        .eq('id', sessionId)
+        .eq('is_live', true)
+        .single();
+
+    if (error || !data || !data.host) {
+        return null;
+    }
+    
+    const hostData = Array.isArray(data.host) ? data.host[0] : data.host;
+
+    return {
+        id: data.id,
+        host_id: data.host_id,
+        is_live: data.is_live,
+        created_at: data.created_at,
+        host: {
+            name: hostData.name,
+            avatarUrl: hostData.avatar_url
+        }
+    };
+};
+
+
 export const createLiveSession = async (hostId: string): Promise<LiveSession | null> => {
     const { data, error } = await supabase
         .from('live_sessions')

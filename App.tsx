@@ -40,7 +40,7 @@ function App() {
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
   const [isLiveAudioModalOpen, setIsLiveAudioModalOpen] = useState(false);
   const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | LiveSessionWithHost | null>(null);
-  const [userRoleInLive, setUserRoleInLive] = useState<'host' | 'listener' | null>(null);
+  const [userRoleInLive, setUserRoleInLive] = useState<'host' | 'speaker' | 'listener' | null>(null);
   const [activeLiveSessions, setActiveLiveSessions] = useState<LiveSessionWithHost[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -91,6 +91,33 @@ function App() {
       supabase.removeChannel(channel);
     };
   }, [appSettings.pushNotifications, userProfile]);
+
+  // Real-time subscription for live sessions
+  useEffect(() => {
+    const handleNewSession = async (payload: any) => {
+        const newSessionWithHost = await db.getLiveSessionById(payload.new.id);
+        if (newSessionWithHost) {
+            setActiveLiveSessions(prev => [newSessionWithHost, ...prev.filter(s => s.id !== newSessionWithHost.id)]);
+        }
+    };
+
+    const liveSessionsChannel = supabase.channel('public:live_sessions')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_sessions' }, handleNewSession)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions' }, 
+        (payload) => {
+          // If a session is no longer live, remove it from the active list.
+          if (!payload.new.is_live) {
+            setActiveLiveSessions(prev => prev.filter(s => s.id !== payload.new.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(liveSessionsChannel);
+    };
+  }, []);
+
 
   useEffect(() => {
     if (appSettings.darkMode) {

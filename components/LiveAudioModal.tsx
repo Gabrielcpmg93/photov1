@@ -69,6 +69,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const channelRef = useRef<any>(null);
+  const sessionStatusChannelRef = useRef<any>(null);
 
   const playbackStateRef = useRef(new Map<string, { queue: AudioBuffer[], isPlaying: boolean, nextStartTime: number }>());
 
@@ -158,10 +159,26 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     gainNodeRef.current.connect(context.destination);
     audioContextRef.current = context;
 
-    const channel = supabase.channel(`live-session:${initialSession.id}`, {
+    const mainChannel = supabase.channel(`live-session:${initialSession.id}`, {
       config: { presence: { key: currentUser.id } },
     });
-    channelRef.current = channel;
+    channelRef.current = mainChannel;
+    
+    // Channel to listen specifically for the session ending
+    const statusChannel = supabase.channel(`live-session-status:${initialSession.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'live_sessions',
+        filter: `id=eq.${initialSession.id}`
+      }, (payload) => {
+        if (!payload.new.is_live && currentRole !== 'host') {
+          alert('A live foi encerrada pelo anfitrião.');
+          onClose();
+        }
+      }).subscribe();
+    sessionStatusChannelRef.current = statusChannel;
+
 
     const handleRoleChange = (payload: { userId: string, newRole: Role }) => {
         setSpeakers(s => s.filter(p => p.id !== payload.userId));
@@ -187,9 +204,9 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         }
     };
 
-    channel
+    mainChannel
       .on('presence', { event: 'sync' }, () => {
-        const presenceState = channel.presenceState();
+        const presenceState = mainChannel.presenceState();
         const allUsersInRoom: Participant[] = Object.entries(presenceState).map(([_, val]: any) => ({
             id: val[0].user_id, name: val[0].name, avatarUrl: val[0].avatar_url,
         }));
@@ -224,7 +241,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           setIsLive(true);
-          await channel.track({ user_id: currentUser.id, name: currentUser.name, avatar_url: currentUser.avatarUrl });
+          await mainChannel.track({ user_id: currentUser.id, name: currentUser.name, avatar_url: currentUser.avatarUrl });
           if (initialRole === 'host') setSpeakers([{ id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl }]);
         }
       });
@@ -232,10 +249,11 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     return () => {
       stopBroadcasting();
       if (channelRef.current) supabase.removeChannel(channelRef.current);
+      if (sessionStatusChannelRef.current) supabase.removeChannel(sessionStatusChannelRef.current);
       playbackStateRef.current.clear();
       gainNodeRef.current = null;
     };
-  }, [isOpen, initialSession.id, currentUser, initialRole, host, hostId, schedulePlayback, startBroadcasting, stopBroadcasting]);
+  }, [isOpen, initialSession.id, currentUser, initialRole, host, hostId, schedulePlayback, startBroadcasting, stopBroadcasting, onClose]);
 
   useEffect(() => {
     if (gainNodeRef.current) gainNodeRef.current.gain.value = volume;
@@ -339,7 +357,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
       </div>
       
       <ListenersPanel isOpen={showListenersPanel} onClose={() => setShowListenersPanel(false)} listeners={listeners} invitedIds={invitedUserIds} onInvite={handleInvite} canInvite={currentRole === 'host' && speakers.length <= MAX_SPEAKERS} />
-      <InvitationToast inviter={pendingInvitation} onAccept={handleInvitationAccept} onDecline={() => setPendingInvitation(null)} />
+      {pendingInvitation && <InvitationToast inviter={pendingInvitation} onAccept={handleInvitationAccept} onDecline={() => setPendingInvitation(null)} />}
       <RequestToSpeakModal isOpen={!!requestToSpeak} user={requestToSpeak} onAccept={handleAcceptRequest} onDecline={handleDeclineRequest} />
 
       <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .3s ease-out forwards}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}`}</style>
