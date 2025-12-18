@@ -40,7 +40,7 @@ function App() {
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
   const [isLiveAudioModalOpen, setIsLiveAudioModalOpen] = useState(false);
   const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | LiveSessionWithHost | null>(null);
-  const [userRoleInLive, setUserRoleInLive] = useState<'host' | 'speaker' | 'listener' | null>(null);
+  const [userRoleInLive, setUserRoleInLive] = useState<'host' | 'listener' | null>(null);
   const [activeLiveSessions, setActiveLiveSessions] = useState<LiveSessionWithHost[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);

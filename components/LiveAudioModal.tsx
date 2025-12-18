@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../services/supabaseService';
 import * as db from '../services/supabaseService';
 import type { LiveSession, UserProfile, LiveComment, LiveSessionWithHost } from '../types';
-import { IconX, IconSend, IconUsers, IconMic, IconMicOff } from './Icons';
+import { IconX, IconSend, IconUsers, IconMic, IconMicOff, IconVolume2, IconVolumeX } from './Icons';
 import { LiveIndicator } from './LiveIndicator';
 
 type Role = 'host' | 'listener';
@@ -46,6 +46,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const [viewerCount, setViewerCount] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isMicMuted, setIsMicMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -167,6 +168,10 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         setViewerCount(allUsersInRoom);
       })
       .on('broadcast', { event: 'audio-chunk' }, ({ payload }) => {
+          if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume();
+          }
+        
           if (!playbackStateRef.current.has(payload.senderId)) {
             playbackStateRef.current.set(payload.senderId, { queue: [], isPlaying: false, nextStartTime: 0 });
           }
@@ -197,6 +202,12 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   }, [isOpen, initialSession.id, currentUser, isHost, schedulePlayback, startBroadcasting, stopBroadcasting, onClose]);
   
   useEffect(() => {
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = volume;
+    }
+  }, [volume]);
+
+  useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [comments]);
 
@@ -214,12 +225,30 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col p-4 transition-opacity duration-300 animate-fade-in">
       <div className="w-full max-w-4xl mx-auto flex flex-col h-full">
         {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center space-x-4">
+        <div className="flex justify-between items-center mb-4 gap-4">
+            <div className="flex items-center space-x-4 flex-shrink-0">
                 <div className="relative"><img src={host.avatarUrl} alt={host.name} className="w-12 h-12 rounded-full" /><div className="absolute -bottom-1 -right-1"><LiveIndicator /></div></div>
                 <div><h2 className="text-xl font-bold text-white">{host.name}</h2><p className="text-gray-400">Sala de áudio</p></div>
             </div>
-             <div className="flex items-center space-x-4">
+            {role === 'listener' && (
+                <div className="flex items-center justify-center space-x-2 flex-grow min-w-0">
+                    <IconVolumeX className="w-5 h-5 text-gray-400" />
+                    <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={volume} 
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        className="w-full max-w-xs h-1.5 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                        style={{
+                            background: `linear-gradient(to right, #6366f1 ${volume * 100}%, #4b5563 ${volume * 100}%)`
+                        }}
+                    />
+                    <IconVolume2 className="w-5 h-5 text-gray-400" />
+                </div>
+            )}
+             <div className="flex items-center space-x-4 flex-shrink-0">
                 <div className="flex items-center space-x-2 bg-black/30 px-3 py-1 rounded-full"><IconUsers className="w-5 h-5 text-white" /><span className="text-white font-semibold">{viewerCount}</span></div>
                 <button onClick={onClose} className="text-gray-300 hover:text-white bg-black/30 p-2 rounded-full"><IconX className="w-6 h-6" /></button>
             </div>
