@@ -8,7 +8,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 // Since there is no auth, we'll hardcode the user ID.
@@ -79,11 +79,11 @@ function App() {
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
 
   const openStoryViewer = useCallback(() => {
-    if (userProfile?.storyUrl) {
+    if (userProfile?.stories && userProfile.stories.length > 0) {
         closeProfileModal();
         setIsStoryViewerOpen(true);
     }
-  }, [userProfile?.storyUrl, closeProfileModal]);
+  }, [userProfile?.stories, closeProfileModal]);
   const closeStoryViewer = useCallback(() => setIsStoryViewerOpen(false), []);
 
 
@@ -162,21 +162,36 @@ function App() {
     if (!userProfile) return;
     const updatedProfile = await db.updateUserProfile(userProfile.id, newProfileData);
     if (updatedProfile) {
-        setUserProfile(updatedProfile as UserProfile);
+        setUserProfile(prevProfile => {
+            if (!prevProfile) return updatedProfile as UserProfile;
+            return {
+                ...prevProfile,
+                name: updatedProfile.name,
+                bio: updatedProfile.bio,
+            };
+        });
     }
   }, [userProfile]);
   
-  const handleSetStory = useCallback(async (storyFile: File) => {
+  const handleAddStory = useCallback(async (storyFile: File) => {
       if(!userProfile) return;
       closeProfileModal();
       setIsLoading(true);
-      const updatedProfile = await db.setStory(userProfile.id, storyFile);
-      if (updatedProfile) {
-        setUserProfile(updatedProfile as UserProfile);
+      const newStory = await db.addStory(userProfile.id, storyFile, { name: userProfile.name, avatarUrl: userProfile.avatarUrl });
+      if (newStory) {
+        setUserProfile(prevProfile => {
+            if (!prevProfile) return null;
+            const existingStories = prevProfile.stories || [];
+            return {
+                ...prevProfile,
+                stories: [...existingStories, newStory as Story]
+            };
+        });
+
          if (appSettings.pushNotifications) {
             showNotification('Novo Story Adicionado!', {
                 body: 'Seu story foi publicado com sucesso.',
-                icon: updatedProfile.storyUrl!,
+                icon: newStory.imageUrl,
             });
         }
         setIsLoading(false);
@@ -235,7 +250,7 @@ function App() {
             userProfile={userProfile}
             onUpdateProfile={handleUpdateProfile}
             onOpenSettings={openSettingsModal}
-            onSetStory={handleSetStory}
+            onAddStory={handleAddStory}
             onOpenStoryViewer={openStoryViewer}
         />
       )}
@@ -245,11 +260,11 @@ function App() {
         settings={appSettings}
         onUpdateSettings={handleUpdateSettings}
       />
-      {userProfile && (
+      {userProfile && userProfile.stories && userProfile.stories.length > 0 && (
         <StoryViewerModal
             isOpen={isStoryViewerOpen}
             onClose={closeStoryViewer}
-            storyUrl={userProfile.storyUrl}
+            stories={userProfile.stories}
             user={userProfile}
         />
       )}

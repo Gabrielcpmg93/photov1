@@ -1,35 +1,74 @@
 
-import React, { useEffect, useRef } from 'react';
-import type { User } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import type { Story, User } from '../types';
 import { IconX } from './Icons';
 
 interface StoryViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  storyUrl: string | null | undefined;
+  stories: Story[];
   user: User;
 }
 
 const STORY_DURATION = 5000; // 5 seconds
 
-export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onClose, storyUrl, user }) => {
+export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onClose, stories, user }) => {
+  const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const timerRef = useRef<number | null>(null);
+
+  const goToNextStory = () => {
+    setCurrentStoryIndex(prevIndex => {
+      if (prevIndex >= stories.length - 1) {
+        onClose(); // Close modal if it's the last story
+        return prevIndex;
+      }
+      return prevIndex + 1;
+    });
+  };
+
+  const goToPreviousStory = () => {
+    setCurrentStoryIndex(prevIndex => Math.max(0, prevIndex - 1));
+  };
 
   useEffect(() => {
     if (isOpen) {
-      timerRef.current = window.setTimeout(() => {
-        onClose();
-      }, STORY_DURATION);
+      // Start timer for the current story
+      timerRef.current = window.setTimeout(goToNextStory, STORY_DURATION);
     }
     
+    // Cleanup function
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
     };
-  }, [isOpen, onClose]);
-  
-  if (!isOpen || !storyUrl) return null;
+  }, [isOpen, currentStoryIndex, stories]); // Rerun effect when story changes
+
+  useEffect(() => {
+    // Reset to the first story when the modal is opened
+    if (isOpen) {
+      setCurrentStoryIndex(0);
+    }
+  }, [isOpen]);
+
+  const handleNavigationClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const { clientX, currentTarget } = e;
+    const { left, width } = currentTarget.getBoundingClientRect();
+    const clickPosition = clientX - left;
+
+    // Reset timer on manual navigation
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    if (clickPosition < width / 3) { // Click on the left third
+      goToPreviousStory();
+    } else { // Click on the right two-thirds
+      goToNextStory();
+    }
+  };
+
+  if (!isOpen || stories.length === 0) return null;
+
+  const currentStory = stories[currentStoryIndex];
 
   return (
     <div 
@@ -38,9 +77,16 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
     >
       <div className="w-full max-w-lg h-full max-h-[90vh] flex flex-col relative" onClick={(e) => e.stopPropagation()}>
         <div className="absolute top-0 left-0 w-full p-4 z-10">
-            <div className="h-1 bg-white/30 rounded-full overflow-hidden">
-                <div className="h-full bg-white animate-progress-bar"></div>
+            {/* Progress Bars */}
+            <div className="flex items-center space-x-1">
+              {stories.map((_, index) => (
+                <div key={index} className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
+                  {index < currentStoryIndex && <div className="h-full bg-white w-full"></div>}
+                  {index === currentStoryIndex && <div className="h-full bg-white animate-progress-bar"></div>}
+                </div>
+              ))}
             </div>
+
             <div className="flex items-center justify-between mt-3">
                 <div className="flex items-center">
                     <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full mr-3 border-2 border-white/50" />
@@ -52,7 +98,11 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
             </div>
         </div>
 
-        <img src={storyUrl} alt="User story" className="w-full h-full object-contain rounded-lg" />
+        <div className="relative w-full h-full flex items-center justify-center">
+            <img src={currentStory.imageUrl} alt="User story" className="w-full h-full object-contain rounded-lg select-none" />
+            {/* Navigation Overlay */}
+            <div className="absolute inset-0 cursor-pointer" onClick={handleNavigationClick}></div>
+        </div>
       </div>
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -67,6 +117,9 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
         }
         .text-shadow {
           text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        .select-none {
+            user-select: none;
         }
       `}</style>
     </div>

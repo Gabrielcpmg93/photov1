@@ -9,11 +9,11 @@ interface ProfileModalProps {
   userProfile: UserProfile;
   onUpdateProfile: (newProfile: Pick<UserProfile, 'name' | 'bio'>) => void;
   onOpenSettings: () => void;
-  onSetStory: (storyFile: File) => void;
+  onAddStory: (storyFile: File) => void;
   onOpenStoryViewer: () => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, onUpdateProfile, onOpenSettings, onSetStory, onOpenStoryViewer }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, onUpdateProfile, onOpenSettings, onAddStory, onOpenStoryViewer }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile.name);
   const [bio, setBio] = useState(userProfile.bio);
@@ -47,11 +47,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
   const handleStoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      onSetStory(file);
+      onAddStory(file);
     }
   };
 
-  const hasStory = !!userProfile.storyUrl;
+  const hasStory = !!userProfile.stories && userProfile.stories.length > 0;
 
   if (!isOpen) return null;
 
@@ -81,7 +81,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
             <div className="relative mb-4">
               <button
                   onClick={hasStory ? onOpenStoryViewer : () => storyInputRef.current?.click()}
-                  className={`p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 focus:ring-purple-500`}
+                  className={`p-1 rounded-full ${hasStory ? 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500' : ''} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 focus:ring-purple-500`}
               >
                   <div className="p-1 bg-white dark:bg-gray-800 rounded-full">
                       <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full" />

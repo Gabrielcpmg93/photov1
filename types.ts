@@ -24,10 +24,17 @@ export interface Post {
   created_at?: string;
 }
 
+export interface Story {
+  id: string;
+  imageUrl: string;
+  createdAt: string;
+  user: User;
+}
+
 export interface UserProfile extends User {
   id: string;
   bio: string;
-  storyUrl?: string | null;
+  stories?: Story[];
 }
 
 export interface NewPost {

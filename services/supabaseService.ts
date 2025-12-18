@@ -1,11 +1,17 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+interface StoryFromSupabase {
+    id: string;
+    image_url: string;
+    created_at: string;
+}
 
 const formatPost = (post: any): Post => ({
     id: post.id,
@@ -35,7 +41,7 @@ const formatProfile = (profile: any): UserProfile => ({
     name: profile.name,
     avatarUrl: profile.avatar_url,
     bio: profile.bio,
-    storyUrl: profile.story_url,
+    stories: [],
 });
 
 export const getPosts = async () => {
@@ -51,18 +57,38 @@ export const getPosts = async () => {
     return data.map(formatPost);
 };
 
-export const getUserProfile = async (userId: string) => {
+export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
     const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select(`
+            *,
+            stories (id, image_url, created_at)
+        `)
         .eq('id', userId)
+        .order('created_at', { referencedTable: 'stories', ascending: true })
         .single();
     
     if (error) {
-        console.error('Error fetching profile:', error.message);
+        console.error('Error fetching profile and stories:', error.message);
         return null;
     }
-    return formatProfile(data);
+
+    const user: User = { name: data.name, avatarUrl: data.avatar_url };
+
+    const profile: UserProfile = {
+        id: data.id,
+        name: data.name,
+        avatarUrl: data.avatar_url,
+        bio: data.bio,
+        stories: (data.stories as StoryFromSupabase[]).map(story => ({
+            id: story.id,
+            imageUrl: story.image_url,
+            createdAt: story.created_at,
+            user: user,
+        }))
+    };
+
+    return profile;
 };
 
 export const getCommentsForPost = async (postId: string) => {
@@ -171,20 +197,28 @@ export const updateUserProfile = async (userId: string, profileData: Pick<UserPr
     return formatProfile(data);
 };
 
-export const setStory = async (userId: string, storyFile: File) => {
+export const addStory = async (userId: string, storyFile: File, user: User): Promise<Story | null> => {
     const storyUrl = await uploadFile('stories', storyFile);
     if (!storyUrl) return null;
 
     const { data, error } = await supabase
-        .from('profiles')
-        .update({ story_url: storyUrl })
-        .eq('id', userId)
+        .from('stories')
+        .insert({
+            user_id: userId,
+            image_url: storyUrl
+        })
         .select()
         .single();
     
     if(error) {
-        console.error('Error setting story:', error.message);
+        console.error('Error adding story:', error.message);
         return null;
     }
-    return formatProfile(data);
+    
+    return {
+        id: data.id,
+        imageUrl: data.image_url,
+        createdAt: data.created_at,
+        user: user
+    };
 };
