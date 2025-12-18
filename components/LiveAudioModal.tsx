@@ -336,10 +336,23 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
                             {isCurrentUserSpeaker && speaker.id === currentUser.id && (<button onClick={() => setIsMicMuted(m => !m)} className="absolute bottom-0 right-0 bg-gray-700 text-white rounded-full p-2">{isMicMuted ? <IconMicOff className="w-5 h-5" /> : <IconMic className="w-5 h-5"/>}</button>)}
                         </div>
                     ) : (
-                        <button onClick={handleRequestToSpeak} disabled={currentRole !== 'listener' || requestSent || speakers.length > MAX_SPEAKERS} className="w-24 h-24 rounded-full border-2 border-dashed border-gray-600 flex flex-col items-center justify-center text-gray-500 hover:border-indigo-500 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-700">
-                           <IconMic className="w-8 h-8" />
-                           <span className="text-xs mt-1 font-semibold">{currentRole === 'listener' ? (requestSent ? 'Solicitado' : 'Pedir pra Falar') : 'Vazio'}</span>
-                        </button>
+                        <>
+                        {currentRole === 'listener' ? (
+                            <button 
+                                onClick={handleRequestToSpeak} 
+                                disabled={requestSent || speakers.length > MAX_SPEAKERS} 
+                                className="w-24 h-24 rounded-full border-2 border-dashed border-gray-600 flex flex-col items-center justify-center text-gray-500 hover:border-indigo-500 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-700"
+                            >
+                               <IconMic className="w-8 h-8" />
+                               <span className="text-xs mt-1 font-semibold">{requestSent ? 'Solicitado' : 'Pedir pra Falar'}</span>
+                            </button>
+                        ) : (
+                            <div className="w-24 h-24 rounded-full border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-700">
+                                <IconMic className="w-8 h-8" />
+                                <span className="text-xs mt-1 font-semibold">Vazio</span>
+                            </div>
+                        )}
+                        </>
                     )}
                     <p className="mt-2 text-white font-semibold truncate w-full">{speaker.name}</p>
                 </div>

@@ -174,6 +174,8 @@ function App() {
 
   const handleEndLive = useCallback(async () => {
     if (currentLiveSession && userRoleInLive === 'host') {
+      // Optimistically remove the session from the UI for the host
+      setActiveLiveSessions(prev => prev.filter(s => s.id !== currentLiveSession.id));
       await db.endLiveSession(currentLiveSession.id);
     }
     setIsLiveAudioModalOpen(false);
