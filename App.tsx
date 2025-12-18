@@ -201,6 +201,21 @@ function App() {
     setSelectedPost(null);
   }, []);
 
+  const handleDeletePost = useCallback(async (postId: string, imageUrl: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta postagem? Esta ação não pode ser desfeita.')) {
+        return;
+    }
+    
+    const success = await db.deletePost(postId, imageUrl);
+    if (success) {
+        handleClosePostDetail();
+        setPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
+        // TODO: Add a success toast/notification
+    } else {
+        alert('Não foi possível excluir a postagem.');
+    }
+  }, [handleClosePostDetail]);
+
   const handleToggleLike = useCallback(async (postId: string) => {
     const post = posts.find(p => p.id === postId);
     if (!post) return;
@@ -342,7 +357,7 @@ function App() {
     )
   }
 
-  const userPosts = userProfile ? posts.filter(p => p.user.name === userProfile.name) : [];
+  const userPosts = userProfile ? posts.filter(p => p.user_id === userProfile.id) : [];
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
@@ -369,6 +384,7 @@ function App() {
             onClose={handleClosePostDetail}
             onToggleLike={handleToggleLike}
             onAddComment={handleAddComment}
+            onDeletePost={handleDeletePost}
             currentUser={userProfile}
         />
       )}

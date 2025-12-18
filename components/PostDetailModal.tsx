@@ -1,17 +1,18 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import type { Post, UserProfile } from '../types';
-import { IconX, IconHeart, IconMessageCircle } from './Icons';
+import { IconX, IconHeart, IconMessageCircle, IconTrash } from './Icons';
 
 interface PostDetailModalProps {
   post: Post;
   onClose: () => void;
   onToggleLike: (postId: string) => void;
   onAddComment: (postId: string, commentText: string) => void;
+  onDeletePost: (postId: string, imageUrl: string) => void;
   currentUser: UserProfile;
 }
 
-export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onToggleLike, onAddComment, currentUser }) => {
+export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onToggleLike, onAddComment, onDeletePost, currentUser }) => {
   const [newComment, setNewComment] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
@@ -53,6 +54,8 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
 
   if (!post) return null;
 
+  const isOwner = currentUser.id === post.user_id;
+
   return (
     <div
       className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4 transition-opacity duration-300 animate-fade-in"
@@ -71,9 +74,16 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
               <img src={post.user.avatarUrl} alt={post.user.name} className="w-10 h-10 rounded-full mr-3" />
               <span className="font-bold text-gray-900 dark:text-white">{post.user.name}</span>
             </div>
-            <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white">
-              <IconX className="w-6 h-6" />
-            </button>
+            <div className="flex items-center space-x-2">
+                {isOwner && (
+                    <button onClick={() => onDeletePost(post.id, post.imageUrl)} className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" aria-label="Excluir postagem">
+                        <IconTrash className="w-6 h-6" />
+                    </button>
+                )}
+                <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white" aria-label="Fechar">
+                    <IconX className="w-6 h-6" />
+                </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">

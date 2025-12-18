@@ -15,6 +15,7 @@ interface StoryFromSupabase {
 
 export const formatPost = (post: any): Post => ({
     id: post.id,
+    user_id: post.user_id,
     caption: post.caption,
     imageUrl: post.image_url,
     likes: post.likes,
@@ -126,6 +127,7 @@ export const createPost = async (postData: NewPost, user: UserProfile) => {
     const { data, error } = await supabase
         .from('posts')
         .insert({
+            user_id: user.id,
             caption: postData.caption,
             image_url: imageUrl,
             user_name: user.name,
@@ -143,6 +145,47 @@ export const createPost = async (postData: NewPost, user: UserProfile) => {
 
     return formatPost(data);
 };
+
+export const deletePost = async (postId: string, imageUrl: string): Promise<boolean> => {
+    // 1. Delete associated comments
+    const { error: commentsError } = await supabase
+        .from('comments')
+        .delete()
+        .eq('post_id', postId);
+
+    if (commentsError) {
+        console.error('Error deleting comments:', commentsError.message);
+        return false;
+    }
+
+    // 2. Delete the post
+    const { error: postError } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+    if (postError) {
+        console.error('Error deleting post:', postError.message);
+        return false;
+    }
+
+    // 3. Delete image from storage
+    try {
+        const fileName = imageUrl.split('/').pop();
+        if (fileName) {
+            const { error: storageError } = await supabase.storage.from('posts').remove([fileName]);
+            if (storageError) {
+                // Log the error but don't fail the whole operation, as the DB part is more critical.
+                console.error('Error deleting image from storage:', storageError.message);
+            }
+        }
+    } catch (e) {
+        console.error('Error parsing image URL for deletion:', e);
+    }
+
+    return true;
+};
+
 
 export const addComment = async (postId: string, text: string, user: User) => {
     const { data, error } = await supabase
