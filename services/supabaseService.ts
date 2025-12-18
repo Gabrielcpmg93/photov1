@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Post, Comment, UserProfile, User, NewPost } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ka3BsdGp3ZXZlZndubmhpaXF2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTk0MjYyMjIsImV4cCI6MjAzNTAwMjIyMn0.6k5dws-n_yWR20sJ2c_F03H5J7nL5q-eT42nQMLTGjc';
+const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
