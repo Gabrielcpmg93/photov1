@@ -54,7 +54,7 @@ export const ChoiceModal: React.FC<ChoiceModalProps> = ({ isOpen, onClose, onSel
               <IconMic className="w-10 h-10 text-purple-500 dark:text-purple-400 mr-4" />
               <div>
                 <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100">Iniciar Live de Áudio</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Converse com uma IA em tempo real.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Transmita sua voz para outras pessoas.</p>
               </div>
             </button>
           </div>

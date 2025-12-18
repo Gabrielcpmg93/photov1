@@ -10,7 +10,7 @@ import { StoryViewerModal } from './components/StoryViewerModal';
 import { ChoiceModal } from './components/ChoiceModal';
 import { LiveAudioModal } from './components/LiveAudioModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 // Since there is no auth, we'll hardcode the user ID.
@@ -38,7 +38,9 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
   const [isLiveAudioModalOpen, setIsLiveAudioModalOpen] = useState(false);
-  const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | null>(null);
+  const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | LiveSessionWithHost | null>(null);
+  const [userRoleInLive, setUserRoleInLive] = useState<'host' | 'listener' | null>(null);
+  const [activeLiveSessions, setActiveLiveSessions] = useState<LiveSessionWithHost[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -50,12 +52,14 @@ function App() {
 
   const loadAppDate = useCallback(async () => {
     setIsLoading(true);
-    const [fetchedPosts, fetchedProfile] = await Promise.all([
+    const [fetchedPosts, fetchedProfile, fetchedLiveSessions] = await Promise.all([
         db.getPosts(),
-        db.getUserProfile(CURRENT_USER_ID)
+        db.getUserProfile(CURRENT_USER_ID),
+        db.getActiveLiveSessions(),
     ]);
     setPosts(fetchedPosts as Post[]);
     setUserProfile(fetchedProfile as UserProfile);
+    setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
     setIsLoading(false);
   }, []);
 
@@ -104,18 +108,26 @@ function App() {
     const session = await db.createLiveSession(userProfile.id);
     if (session) {
       setCurrentLiveSession(session);
+      setUserRoleInLive('host');
       setIsLiveAudioModalOpen(true);
     }
     setIsLoading(false);
   }, [userProfile]);
 
+  const handleJoinLive = useCallback((session: LiveSessionWithHost) => {
+    setCurrentLiveSession(session);
+    setUserRoleInLive('listener');
+    setIsLiveAudioModalOpen(true);
+  }, []);
+
   const handleEndLive = useCallback(async () => {
-    if (currentLiveSession) {
+    if (currentLiveSession && userRoleInLive === 'host') {
       await db.endLiveSession(currentLiveSession.id);
     }
     setIsLiveAudioModalOpen(false);
     setCurrentLiveSession(null);
-  }, [currentLiveSession]);
+    setUserRoleInLive(null);
+  }, [currentLiveSession, userRoleInLive]);
 
 
   const handleSelectPost = useCallback(async (post: Post) => {
@@ -258,7 +270,7 @@ function App() {
     <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Header onNewPostClick={openChoiceModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
-        <Feed posts={posts} onPostClick={handleSelectPost} />
+        <Feed posts={posts} onPostClick={handleSelectPost} liveSessions={activeLiveSessions} onJoinLive={handleJoinLive} />
       </main>
 
       <ChoiceModal 
@@ -307,12 +319,13 @@ function App() {
             user={userProfile}
         />
       )}
-      {isLiveAudioModalOpen && currentLiveSession && userProfile && (
+      {isLiveAudioModalOpen && currentLiveSession && userProfile && userRoleInLive && (
         <LiveAudioModal
           isOpen={isLiveAudioModalOpen}
           onClose={handleEndLive}
           session={currentLiveSession}
-          host={userProfile}
+          currentUser={userProfile}
+          role={userRoleInLive}
         />
       )}
     </div>

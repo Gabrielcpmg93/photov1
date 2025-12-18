@@ -55,6 +55,10 @@ export interface LiveSession {
   created_at: string;
 }
 
+export interface LiveSessionWithHost extends LiveSession {
+    host: User;
+}
+
 export interface LiveComment {
     id: string;
     session_id: string;

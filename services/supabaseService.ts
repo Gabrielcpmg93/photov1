@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession, LiveComment } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession, LiveComment, LiveSessionWithHost } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
@@ -224,6 +224,33 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
 };
 
 // Live Audio Session Functions
+
+export const getActiveLiveSessions = async (): Promise<LiveSessionWithHost[]> => {
+    const { data, error } = await supabase
+        .from('live_sessions')
+        .select(`
+            *,
+            host:profiles(name, avatar_url)
+        `)
+        .eq('is_live', true)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching active live sessions:', error.message);
+        return [];
+    }
+
+    return data.map((session: any) => ({
+        id: session.id,
+        host_id: session.host_id,
+        is_live: session.is_live,
+        created_at: session.created_at,
+        host: {
+            name: session.host.name,
+            avatarUrl: session.host.avatar_url
+        }
+    }));
+};
 
 export const createLiveSession = async (hostId: string): Promise<LiveSession | null> => {
     const { data, error } = await supabase
