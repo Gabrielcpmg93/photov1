@@ -91,22 +91,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     >
       <div 
         ref={modalRef}
-        className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto transform scale-95 transition-all duration-300 animate-fade-in-up"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto transform scale-95 transition-all duration-300 animate-fade-in-up"
         style={{ animation: 'fadeInUp 0.3s ease-out forwards' }}
       >
         <div className="p-6 relative">
-          <h2 className="text-2xl font-bold text-center mb-4">Criar Nova Postagem</h2>
-          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+          <h2 className="text-2xl font-bold text-center mb-4 text-gray-900 dark:text-white">Criar Nova Postagem</h2>
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors">
             <IconX className="w-6 h-6" />
           </button>
           <form onSubmit={handleSubmit}>
             {!previewUrl ? (
               <div
-                className="border-2 border-dashed border-gray-600 rounded-lg p-10 text-center cursor-pointer hover:border-indigo-400 hover:bg-gray-700/50 transition-colors"
+                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center cursor-pointer hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <IconUpload className="w-12 h-12 mx-auto text-gray-500 mb-2" />
-                <p className="text-gray-400">Arraste e solte uma imagem ou clique para selecionar</p>
+                <IconUpload className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-2" />
+                <p className="text-gray-500 dark:text-gray-400">Arraste e solte uma imagem ou clique para selecionar</p>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -127,7 +127,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   placeholder="Escreva uma legenda..."
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                  className="w-full p-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                   rows={3}
                 />
                 <button
@@ -142,7 +142,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               </div>
             )}
             
-            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+            {error && <p className="text-red-500 dark:text-red-400 text-sm mt-2">{error}</p>}
             
             <button
               type="submit"

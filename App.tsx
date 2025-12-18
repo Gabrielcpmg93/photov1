@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Feed } from './components/Feed';
 import { CreatePostModal } from './components/CreatePostModal';
@@ -87,6 +87,16 @@ const initialSettings: AppSettings = {
   pushNotifications: false,
 };
 
+const showNotification = (title: string, options: NotificationOptions) => {
+  if (!('Notification' in window)) {
+    console.error("Este browser não suporta notificações.");
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    new Notification(title, options);
+  }
+};
+
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -96,6 +106,14 @@ function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfile);
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
+
+  useEffect(() => {
+    if (appSettings.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [appSettings.darkMode]);
 
   const openCreateModal = useCallback(() => setIsCreateModalOpen(true), []);
   const closeCreateModal = useCallback(() => setIsCreateModalOpen(false), []);
@@ -120,6 +138,7 @@ function App() {
   }, []);
 
   const handleToggleLike = useCallback((postId: string) => {
+    let postToUpdate: Post | undefined;
     setPosts(prevPosts =>
       prevPosts.map(p => {
         if (p.id === postId) {
@@ -129,12 +148,19 @@ function App() {
           if (selectedPost && selectedPost.id === postId) {
             setSelectedPost(updatedPost);
           }
+          postToUpdate = updatedPost;
           return updatedPost;
         }
         return p;
       })
     );
-  }, [selectedPost]);
+     if (appSettings.pushNotifications && postToUpdate && postToUpdate.liked) {
+      showNotification('Postagem Curtida!', {
+        body: `Você curtiu a postagem de ${postToUpdate.user.name}.`,
+        icon: postToUpdate.imageUrl,
+      });
+    }
+  }, [selectedPost, appSettings.pushNotifications]);
 
   const handleAddComment = useCallback((postId: string, commentText: string) => {
     const newComment: Comment = {
@@ -142,6 +168,7 @@ function App() {
       user: { name: userProfile.name, avatarUrl: userProfile.avatarUrl },
       text: commentText,
     };
+    let postForNotification: Post | undefined;
     setPosts(prevPosts =>
       prevPosts.map(p => {
         if (p.id === postId) {
@@ -150,12 +177,19 @@ function App() {
           if (selectedPost && selectedPost.id === postId) {
             setSelectedPost(updatedPost);
           }
+          postForNotification = updatedPost;
           return updatedPost;
         }
         return p;
       })
     );
-  }, [selectedPost, userProfile]);
+    if (appSettings.pushNotifications && postForNotification) {
+      showNotification('Novo Comentário!', {
+        body: `Você comentou: "${commentText}"`,
+        icon: postForNotification.imageUrl,
+      });
+    }
+  }, [selectedPost, userProfile, appSettings.pushNotifications]);
 
 
   const addPost = useCallback((newPost: Omit<Post, 'id' | 'likes' | 'comments' | 'user'>) => {
@@ -169,19 +203,30 @@ function App() {
       ...newPost
     };
     setPosts(prevPosts => [post, ...prevPosts]);
+    if (appSettings.pushNotifications) {
+      showNotification('Nova Postagem Criada!', {
+        body: `Sua postagem "${post.caption.substring(0, 30)}..." foi publicada.`,
+        icon: post.imageUrl,
+      });
+    }
     closeCreateModal();
-  }, [closeCreateModal, userProfile]);
+  }, [closeCreateModal, userProfile, appSettings.pushNotifications]);
 
   const handleUpdateProfile = useCallback((newProfile: UserProfile) => {
     setUserProfile(newProfile);
   }, []);
 
   const handleUpdateSettings = useCallback((newSettings: AppSettings) => {
+    if (newSettings.pushNotifications && !appSettings.pushNotifications) {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
     setAppSettings(newSettings);
-  }, []);
+  }, [appSettings]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Header onNewPostClick={openCreateModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
         <Feed posts={posts} onPostClick={handleSelectPost} />

@@ -12,7 +12,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
   return (
     <button
       onClick={() => onClick(post)}
-      className="group relative text-left w-full overflow-hidden rounded-xl shadow-lg bg-gray-800 break-inside-avoid-column transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500"
+      className="group relative text-left w-full overflow-hidden rounded-xl shadow-lg bg-white dark:bg-gray-800 break-inside-avoid-column transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 focus:ring-indigo-500"
     >
       <img
         src={post.imageUrl}
