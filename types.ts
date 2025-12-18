@@ -23,6 +23,7 @@ export interface Post {
 
 export interface UserProfile extends User {
   bio: string;
+  storyUrl?: string | null;
 }
 
 export interface AppSettings {

@@ -6,6 +6,7 @@ import { CreatePostModal } from './components/CreatePostModal';
 import { PostDetailModal } from './components/PostDetailModal';
 import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
+import { StoryViewerModal } from './components/StoryViewerModal';
 import type { Post, Comment, UserProfile, AppSettings } from './types';
 
 // Add more posts to make the feed scrollable
@@ -79,6 +80,7 @@ const initialProfile: UserProfile = {
   name: 'Seu Nome',
   avatarUrl: 'https://picsum.photos/seed/you/200/200',
   bio: 'Esta é a sua biografia! Clique em editar para alterá-la.',
+  storyUrl: null,
 };
 
 const initialSettings: AppSettings = {
@@ -104,6 +106,7 @@ function App() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfile);
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
 
@@ -126,6 +129,14 @@ function App() {
     setIsSettingsModalOpen(true);
   }, [closeProfileModal]);
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
+
+  const openStoryViewer = useCallback(() => {
+    if (userProfile.storyUrl) {
+        closeProfileModal();
+        setIsStoryViewerOpen(true);
+    }
+  }, [userProfile.storyUrl, closeProfileModal]);
+  const closeStoryViewer = useCallback(() => setIsStoryViewerOpen(false), []);
 
 
   const handleSelectPost = useCallback((post: Post) => {
@@ -215,6 +226,18 @@ function App() {
   const handleUpdateProfile = useCallback((newProfile: UserProfile) => {
     setUserProfile(newProfile);
   }, []);
+  
+  const handleSetStory = useCallback((imageUrl: string) => {
+      setUserProfile(prev => ({...prev, storyUrl: imageUrl}));
+      if (appSettings.pushNotifications) {
+        showNotification('Novo Story Adicionado!', {
+            body: 'Seu story foi publicado com sucesso.',
+            icon: imageUrl,
+        });
+      }
+      openStoryViewer();
+  }, [appSettings.pushNotifications, openStoryViewer]);
+
 
   const handleUpdateSettings = useCallback((newSettings: AppSettings) => {
     if (newSettings.pushNotifications && !appSettings.pushNotifications) {
@@ -248,12 +271,20 @@ function App() {
         userProfile={userProfile}
         onUpdateProfile={handleUpdateProfile}
         onOpenSettings={openSettingsModal}
+        onSetStory={handleSetStory}
+        onOpenStoryViewer={openStoryViewer}
       />
        <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={closeSettingsModal}
         settings={appSettings}
         onUpdateSettings={handleUpdateSettings}
+      />
+      <StoryViewerModal
+        isOpen={isStoryViewerOpen}
+        onClose={closeStoryViewer}
+        storyUrl={userProfile.storyUrl}
+        user={userProfile}
       />
     </div>
   );

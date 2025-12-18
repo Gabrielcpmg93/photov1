@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile } from '../types';
-import { IconX, IconSettings } from './Icons';
+import { IconX, IconSettings, IconPlusCircle } from './Icons';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -9,13 +9,16 @@ interface ProfileModalProps {
   userProfile: UserProfile;
   onUpdateProfile: (newProfile: UserProfile) => void;
   onOpenSettings: () => void;
+  onSetStory: (imageUrl: string) => void;
+  onOpenStoryViewer: () => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, onUpdateProfile, onOpenSettings }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, onUpdateProfile, onOpenSettings, onSetStory, onOpenStoryViewer }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile.name);
   const [bio, setBio] = useState(userProfile.bio);
   const modalRef = useRef<HTMLDivElement>(null);
+  const storyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -40,6 +43,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
       onClose();
     }
   };
+
+  const handleStoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const imageUrl = URL.createObjectURL(file);
+      onSetStory(imageUrl);
+    }
+  };
+
+  const hasStory = !!userProfile.storyUrl;
 
   if (!isOpen) return null;
 
@@ -66,8 +79,31 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
           </div>
           
           <div className="flex flex-col items-center text-center">
-            <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full mb-4 border-4 border-gray-300 dark:border-gray-600" />
-            
+            <div className="relative mb-4">
+              <button
+                  onClick={hasStory ? onOpenStoryViewer : () => storyInputRef.current?.click()}
+                  className={`p-1 rounded-full bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-purple-500`}
+              >
+                  <div className="p-1 bg-white dark:bg-gray-800 rounded-full">
+                      <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full" />
+                  </div>
+              </button>
+              <button
+                  onClick={() => storyInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-1 border-2 border-white dark:border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500"
+                  aria-label="Adicionar story"
+              >
+                  <IconPlusCircle className="w-6 h-6" strokeWidth={2} />
+              </button>
+              <input
+                  type="file"
+                  ref={storyInputRef}
+                  onChange={handleStoryFileChange}
+                  accept="image/*"
+                  className="hidden"
+              />
+            </div>
+
             {isEditing ? (
               <input 
                 type="text" 
