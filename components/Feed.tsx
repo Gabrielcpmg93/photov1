@@ -12,12 +12,13 @@ interface FeedProps {
   currentUser: UserProfile | null;
   onDeletePost: (postId: string, imageUrl: string) => void;
   onToggleLike: (postId: string) => void;
+  showLiveSessions: boolean;
 }
 
-export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, onJoinLive, currentUser, onDeletePost, onToggleLike }) => {
+export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, onJoinLive, currentUser, onDeletePost, onToggleLike, showLiveSessions }) => {
   return (
     <>
-      {liveSessions.length > 0 && (
+      {showLiveSessions && liveSessions.length > 0 && (
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-4 px-1">Ao Vivo Agora</h2>
           <LiveSessionsBar sessions={liveSessions} onJoinLive={onJoinLive} />

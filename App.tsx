@@ -13,6 +13,7 @@ import * as db from './services/supabaseService';
 import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
+import { NotificationHelpModal } from './components/NotificationHelpModal';
 
 // Since there is no auth, we'll hardcode the user ID.
 // In a real app, this would come from the authenticated user session.
@@ -22,6 +23,7 @@ const initialSettings: AppSettings = {
   darkMode: true,
   emailNotifications: true,
   pushNotifications: false,
+  showLiveSessions: true,
 };
 
 const showNotification = (title: string, options: NotificationOptions) => {
@@ -46,6 +48,7 @@ function App() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isNotificationHelpModalOpen, setIsNotificationHelpModalOpen] = useState(false);
   const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
@@ -151,6 +154,9 @@ function App() {
     setIsSettingsModalOpen(true);
   }, [closeProfileModal]);
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
+  
+  const openNotificationHelpModal = useCallback(() => setIsNotificationHelpModalOpen(true), []);
+  const closeNotificationHelpModal = useCallback(() => setIsNotificationHelpModalOpen(false), []);
 
   const openStoryViewer = useCallback(() => {
     if (userProfile?.stories && userProfile.stories.length > 0) {
@@ -341,19 +347,17 @@ function App() {
             if (permission === 'granted') {
               setAppSettings(newSettings);
               showNotification('Notificações Ativadas!', { body: 'Você agora receberá atualizações.' });
-            } else {
-              // User denied permission, don't update the setting state
             }
           });
-          return; // prevent setting state immediately
+          return;
         } else if (Notification.permission === 'denied') {
-          alert('As notificações foram bloqueadas. Você precisa permitir nas configurações do seu navegador para ativar este recurso.');
-          return; // Do not update settings if permission is denied
+          openNotificationHelpModal();
+          return;
         }
       }
     }
     setAppSettings(newSettings);
-  }, [appSettings]);
+  }, [appSettings, openNotificationHelpModal]);
   
   if (isLoading && !selectedPost && !isLiveAudioModalOpen) {
     return (
@@ -380,6 +384,7 @@ function App() {
           currentUser={userProfile}
           onDeletePost={handleDeletePost}
           onToggleLike={handleToggleLike}
+          showLiveSessions={appSettings.showLiveSessions}
         />
       </main>
 
@@ -424,6 +429,10 @@ function App() {
         onClose={closeSettingsModal}
         settings={appSettings}
         onUpdateSettings={handleUpdateSettings}
+      />
+       <NotificationHelpModal
+        isOpen={isNotificationHelpModalOpen}
+        onClose={closeNotificationHelpModal}
       />
       {userProfile && userProfile.stories && userProfile.stories.length > 0 && (
         <StoryViewerModal

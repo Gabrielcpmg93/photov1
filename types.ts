@@ -47,6 +47,7 @@ export interface AppSettings {
   darkMode: boolean;
   emailNotifications: boolean;
   pushNotifications: boolean;
+  showLiveSessions: boolean;
 }
 
 export interface LiveSession {
