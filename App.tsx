@@ -377,6 +377,7 @@ function App() {
           onJoinLive={handleJoinLive} 
           currentUser={userProfile}
           onDeletePost={handleDeletePost}
+          onToggleLike={handleToggleLike}
         />
       </main>
 

@@ -174,7 +174,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
                     {userPosts.map(post => (
                     <div key={post.id} className="aspect-square relative group bg-gray-200 dark:bg-gray-700 rounded-sm">
                         <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
-                        <div onClick={() => onSelectPost(post)} className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white cursor-pointer">
+                        <div onClick={() => onSelectPost(post)} className="absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity text-white cursor-pointer group-hover:bg-black/60">
                             <div className="flex items-center space-x-4 text-sm">
                                 <div className="flex items-center space-x-1">
                                     <IconHeart className="w-4 h-4" fill="white" />
@@ -188,7 +188,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
                         </div>
                          <button 
                             onClick={(e) => handleDelete(e, post)}
-                            className="absolute top-1 right-1 z-10 p-1.5 bg-black/50 rounded-full text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                            className="absolute top-1 right-1 z-10 p-1.5 bg-black/50 rounded-full text-white hover:bg-red-500 transition-colors"
                             aria-label="Excluir postagem"
                           >
                             <IconTrash className="w-4 h-4" />

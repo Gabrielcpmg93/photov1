@@ -11,9 +11,10 @@ interface FeedProps {
   onJoinLive: (session: LiveSessionWithHost) => void;
   currentUser: UserProfile | null;
   onDeletePost: (postId: string, imageUrl: string) => void;
+  onToggleLike: (postId: string) => void;
 }
 
-export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, onJoinLive, currentUser, onDeletePost }) => {
+export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, onJoinLive, currentUser, onDeletePost, onToggleLike }) => {
   return (
     <>
       {liveSessions.length > 0 && (
@@ -37,6 +38,7 @@ export const Feed: React.FC<FeedProps> = ({ posts, liveSessions, onPostClick, on
               onClick={onPostClick} 
               currentUser={currentUser}
               onDeletePost={onDeletePost}
+              onToggleLike={onToggleLike}
             />
           ))}
         </div>
