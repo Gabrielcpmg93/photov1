@@ -6,7 +6,7 @@ import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, Icon
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  userProfile: UserProfile;
+  userProfile: UserProfile | null;
   userPosts: Post[];
   onUpdateProfile: (newProfile: Pick<UserProfile, 'name' | 'bio'>) => void;
   onOpenSettings: () => void;
@@ -18,15 +18,17 @@ interface ProfileModalProps {
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, userPosts, onUpdateProfile, onOpenSettings, onStartStoryCreation, onOpenStoryViewer, onSelectPost, onDeletePost }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(userProfile.name);
-  const [bio, setBio] = useState(userProfile.bio);
+  const [name, setName] = useState(userProfile?.name ?? '');
+  const [bio, setBio] = useState(userProfile?.bio ?? '');
   const modalRef = useRef<HTMLDivElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setName(userProfile.name);
-      setBio(userProfile.bio);
+      if (userProfile) {
+        setName(userProfile.name);
+        setBio(userProfile.bio);
+      }
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -42,8 +44,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
   };
   
   const handleCancel = () => {
-    setName(userProfile.name);
-    setBio(userProfile.bio);
+    if (userProfile) {
+      setName(userProfile.name);
+      setBio(userProfile.bio);
+    }
     setIsEditing(false);
   };
   
@@ -65,9 +69,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
     onDeletePost(post.id, post.imageUrl);
   };
 
-  const hasStory = !!userProfile.stories && userProfile.stories.length > 0;
-
   if (!isOpen) return null;
+
+  if (!userProfile) {
+    return (
+        <div 
+            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 transition-opacity duration-300 animate-fade-in"
+            onClick={handleOverlayClick}
+        >
+            <div 
+                ref={modalRef}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-8 text-center flex flex-col items-center"
+            >
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mb-4"></div>
+                <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">Carregando perfil...</p>
+            </div>
+        </div>
+    );
+  }
+
+  const hasStory = !!userProfile.stories && userProfile.stories.length > 0;
 
   return (
     <div 

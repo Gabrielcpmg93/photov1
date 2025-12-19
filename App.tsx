@@ -429,20 +429,18 @@ function App() {
             currentUser={userProfile}
         />
       )}
-      {userProfile && (
-        <ProfileModal
-            isOpen={isProfileModalOpen}
-            onClose={closeProfileModal}
-            userProfile={userProfile}
-            userPosts={userPosts}
-            onUpdateProfile={handleUpdateProfile}
-            onOpenSettings={openSettingsModal}
-            onStartStoryCreation={handleStartStoryCreation}
-            onOpenStoryViewer={openStoryViewer}
-            onSelectPost={handleSelectPostFromProfile}
-            onDeletePost={handleDeletePost}
-        />
-      )}
+      <ProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={closeProfileModal}
+          userProfile={userProfile}
+          userPosts={userPosts}
+          onUpdateProfile={handleUpdateProfile}
+          onOpenSettings={openSettingsModal}
+          onStartStoryCreation={handleStartStoryCreation}
+          onOpenStoryViewer={openStoryViewer}
+          onSelectPost={handleSelectPostFromProfile}
+          onDeletePost={handleDeletePost}
+      />
        <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={closeSettingsModal}
