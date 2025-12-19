@@ -10,10 +10,11 @@ import { StoryViewerModal } from './components/StoryViewerModal';
 import { ChoiceModal } from './components/ChoiceModal';
 import { LiveAudioModal } from './components/LiveAudioModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost, MusicTrack } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 import { NotificationHelpModal } from './components/NotificationHelpModal';
+import { MusicSelectionModal } from './components/MusicSelectionModal';
 
 // Since there is no auth, we'll hardcode the user ID.
 // In a real app, this would come from the authenticated user session.
@@ -54,16 +55,24 @@ function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Story creation flow state
+  const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
+  const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
+  const [storyFileToUpload, setStoryFileToUpload] = useState<File | null>(null);
+
+
   const loadAppDate = useCallback(async () => {
     setIsLoading(true);
-    const [fetchedPosts, fetchedProfile, fetchedLiveSessions] = await Promise.all([
+    const [fetchedPosts, fetchedProfile, fetchedLiveSessions, fetchedMusicTracks] = await Promise.all([
         db.getPosts(),
         db.getUserProfile(CURRENT_USER_ID),
         db.getActiveLiveSessions(),
+        db.getMusicTracks(),
     ]);
     setPosts(fetchedPosts as Post[]);
     setUserProfile(fetchedProfile as UserProfile);
     setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
+    setMusicTracks(fetchedMusicTracks);
     setIsLoading(false);
   }, []);
 
@@ -143,7 +152,7 @@ function App() {
   const openCreateModal = useCallback(() => {
     closeChoiceModal();
     setIsCreateModalOpen(true);
-  }, []);
+  }, [closeChoiceModal]);
   const closeCreateModal = useCallback(() => setIsCreateModalOpen(false), []);
   
   const openProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
@@ -177,7 +186,7 @@ function App() {
       setIsLiveAudioModalOpen(true);
     }
     setIsLoading(false);
-  }, [userProfile]);
+  }, [userProfile, closeChoiceModal]);
 
   const handleJoinLive = useCallback((session: LiveSessionWithHost) => {
     setCurrentLiveSession(session);
@@ -208,7 +217,7 @@ function App() {
     setTimeout(() => {
       handleSelectPost(post);
     }, 300);
-  }, [handleSelectPost]);
+  }, [handleSelectPost, closeProfileModal]);
 
   const handleClosePostDetail = useCallback(() => {
     setSelectedPost(null);
@@ -309,11 +318,21 @@ function App() {
     }
   }, [userProfile]);
   
-  const handleAddStory = useCallback(async (storyFile: File) => {
-      if(!userProfile) return;
-      closeProfileModal();
+  const handleStartStoryCreation = useCallback((storyFile: File) => {
+    closeProfileModal();
+    setStoryFileToUpload(storyFile);
+    setIsMusicModalOpen(true);
+  }, [closeProfileModal]);
+
+  const handleAddStory = useCallback(async (musicTrack?: MusicTrack) => {
+      if(!userProfile || !storyFileToUpload) return;
+      setIsMusicModalOpen(false);
       setIsLoading(true);
-      const newStory = await db.addStory(userProfile.id, storyFile, { name: userProfile.name, avatarUrl: userProfile.avatarUrl });
+
+      const newStory = await db.addStory(userProfile.id, storyFileToUpload, { name: userProfile.name, avatarUrl: userProfile.avatarUrl }, musicTrack?.id);
+      
+      setStoryFileToUpload(null);
+
       if (newStory) {
         setUserProfile(prevProfile => {
             if (!prevProfile) return null;
@@ -336,7 +355,7 @@ function App() {
       } else {
         setIsLoading(false);
       }
-  }, [userProfile, appSettings.pushNotifications, closeProfileModal]);
+  }, [userProfile, storyFileToUpload, appSettings.pushNotifications]);
 
 
   const handleUpdateSettings = useCallback((newSettings: AppSettings) => {
@@ -418,7 +437,7 @@ function App() {
             userPosts={userPosts}
             onUpdateProfile={handleUpdateProfile}
             onOpenSettings={openSettingsModal}
-            onAddStory={handleAddStory}
+            onStartStoryCreation={handleStartStoryCreation}
             onOpenStoryViewer={openStoryViewer}
             onSelectPost={handleSelectPostFromProfile}
             onDeletePost={handleDeletePost}
@@ -433,6 +452,12 @@ function App() {
        <NotificationHelpModal
         isOpen={isNotificationHelpModalOpen}
         onClose={closeNotificationHelpModal}
+      />
+      <MusicSelectionModal
+        isOpen={isMusicModalOpen}
+        onClose={() => setIsMusicModalOpen(false)}
+        tracks={musicTracks}
+        onSelectTrack={handleAddStory}
       />
       {userProfile && userProfile.stories && userProfile.stories.length > 0 && (
         <StoryViewerModal

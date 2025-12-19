@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession, LiveComment, LiveSessionWithHost } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession, LiveComment, LiveSessionWithHost, MusicTrack } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
@@ -11,6 +11,7 @@ interface StoryFromSupabase {
     id: string;
     image_url: string;
     created_at: string;
+    music_tracks: MusicTrack | null;
 }
 
 export const formatPost = (post: any): Post => ({
@@ -63,7 +64,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
         .from('profiles')
         .select(`
             *,
-            stories (id, image_url, created_at)
+            stories (id, image_url, created_at, music_tracks (id, title, artist, track_url))
         `)
         .eq('id', userId)
         .order('created_at', { referencedTable: 'stories', ascending: true })
@@ -86,6 +87,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
             imageUrl: story.image_url,
             createdAt: story.created_at,
             user: user,
+            musicTrack: story.music_tracks,
         }))
     };
 
@@ -240,7 +242,7 @@ export const updateUserProfile = async (userId: string, profileData: Pick<UserPr
     return formatProfile(data);
 };
 
-export const addStory = async (userId: string, storyFile: File, user: User): Promise<Story | null> => {
+export const addStory = async (userId: string, storyFile: File, user: User, musicTrackId?: string): Promise<Story | null> => {
     const storyUrl = await uploadFile('stories', storyFile);
     if (!storyUrl) return null;
 
@@ -248,9 +250,10 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
         .from('stories')
         .insert({
             user_id: userId,
-            image_url: storyUrl
+            image_url: storyUrl,
+            music_track_id: musicTrackId
         })
-        .select()
+        .select(`*, music_tracks(*)`)
         .single();
     
     if(error) {
@@ -262,9 +265,23 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
         id: data.id,
         imageUrl: data.image_url,
         createdAt: data.created_at,
-        user: user
+        user: user,
+        musicTrack: data.music_tracks,
     };
 };
+
+export const getMusicTracks = async (): Promise<MusicTrack[]> => {
+    // In a real app, this would fetch from a 'music_tracks' table.
+    // For this demo, we'll return a hardcoded list of funk tracks.
+    return Promise.resolve([
+        { id: '1', title: 'Bum Bum Tam Tam', artist: 'MC Fioti', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-1.mp3' },
+        { id: '2', title: 'Olha a Explosão', artist: 'MC Kevinho', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-2.mp3' },
+        { id: '3', title: 'Parado no Bailão', artist: 'MC L da Vinte', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-3.mp3' },
+        { id: '4', title: 'Ritmo Mexicano', artist: 'MC GW', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-4.mp3' },
+        { id: '5', title: 'Tudo de Bom', artist: 'MC Livinho', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-5.mp3' },
+    ]);
+};
+
 
 // Live Audio Session Functions
 

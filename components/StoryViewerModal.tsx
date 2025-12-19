@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { Story, User } from '../types';
-import { IconX } from './Icons';
+import { IconMusic, IconX } from './Icons';
 
 interface StoryViewerModalProps {
   isOpen: boolean;
@@ -15,6 +15,9 @@ const STORY_DURATION = 5000; // 5 seconds
 export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onClose, stories, user }) => {
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const timerRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const currentStory = stories[currentStoryIndex];
 
   const goToNextStory = () => {
     setCurrentStoryIndex(prevIndex => {
@@ -32,17 +35,38 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
 
   useEffect(() => {
     if (isOpen) {
-      // Start timer for the current story
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.loop = true;
+      }
+
+      if (currentStory?.musicTrack?.track_url) {
+        if (audioRef.current.src !== currentStory.musicTrack.track_url) {
+            audioRef.current.src = currentStory.musicTrack.track_url;
+        }
+        audioRef.current.play().catch(e => console.error("Audio play failed", e));
+      } else {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+
       timerRef.current = window.setTimeout(goToNextStory, STORY_DURATION);
     }
     
-    // Cleanup function
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [isOpen, currentStoryIndex, stories, currentStory]);
+
+  useEffect(() => {
+    // Cleanup on unmount/close
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
       }
     };
-  }, [isOpen, currentStoryIndex, stories]); // Rerun effect when story changes
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -56,7 +80,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
   }, [isOpen]);
 
   useEffect(() => {
-    // Reset to the first story when the modal is opened
     if (isOpen) {
       setCurrentStoryIndex(0);
     }
@@ -67,19 +90,17 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
     const { left, width } = currentTarget.getBoundingClientRect();
     const clickPosition = clientX - left;
 
-    // Reset timer on manual navigation
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (audioRef.current) audioRef.current.pause();
 
-    if (clickPosition < width / 3) { // Click on the left third
+    if (clickPosition < width / 3) {
       goToPreviousStory();
-    } else { // Click on the right two-thirds
+    } else {
       goToNextStory();
     }
   };
 
   if (!isOpen || stories.length === 0) return null;
-
-  const currentStory = stories[currentStoryIndex];
 
   return (
     <div 
@@ -88,7 +109,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
     >
       <div className="w-full max-w-lg h-full max-h-[90vh] flex flex-col relative" onClick={(e) => e.stopPropagation()}>
         <div className="absolute top-0 left-0 w-full p-4 z-10">
-            {/* Progress Bars */}
             <div className="flex items-center space-x-1">
               {stories.map((_, index) => (
                 <div key={index} className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
@@ -99,9 +119,18 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
             </div>
 
             <div className="flex items-center justify-between mt-3">
-                <div className="flex items-center">
-                    <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full mr-3 border-2 border-white/50" />
+                <div className="flex items-center space-x-3">
+                    <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full border-2 border-white/50" />
                     <span className="font-bold text-white text-shadow">{user.name}</span>
+                    {currentStory.musicTrack && (
+                       <div className="flex items-center space-x-2 bg-black/40 px-3 py-1.5 rounded-full backdrop-blur-sm">
+                           <IconMusic className="w-4 h-4 text-white" />
+                           <div className="leading-tight">
+                                <p className="text-xs font-bold text-white truncate">{currentStory.musicTrack.title}</p>
+                                <p className="text-[10px] text-white/80 truncate">{currentStory.musicTrack.artist}</p>
+                           </div>
+                       </div>
+                    )}
                 </div>
                 <button onClick={onClose} className="text-white/80 hover:text-white">
                     <IconX className="w-8 h-8" />
@@ -111,7 +140,6 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
 
         <div className="relative w-full h-full flex items-center justify-center">
             <img src={currentStory.imageUrl} alt="User story" className="w-full h-full object-contain rounded-lg select-none" />
-            {/* Navigation Overlay */}
             <div className="absolute inset-0 cursor-pointer" onClick={handleNavigationClick}></div>
         </div>
       </div>
