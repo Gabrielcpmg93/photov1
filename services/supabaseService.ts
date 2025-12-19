@@ -270,18 +270,6 @@ export const addStory = async (userId: string, storyFile: File, user: User, musi
     };
 };
 
-export const getMusicTracks = async (): Promise<MusicTrack[]> => {
-    // In a real app, this would fetch from a 'music_tracks' table.
-    // For this demo, we'll return a hardcoded list of funk tracks.
-    return Promise.resolve([
-        { id: '1', title: 'Bum Bum Tam Tam', artist: 'MC Fioti', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-1.mp3' },
-        { id: '2', title: 'Olha a Explosão', artist: 'MC Kevinho', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-2.mp3' },
-        { id: '3', title: 'Parado no Bailão', artist: 'MC L da Vinte', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-3.mp3' },
-        { id: '4', title: 'Ritmo Mexicano', artist: 'MC GW', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-4.mp3' },
-        { id: '5', title: 'Tudo de Bom', artist: 'MC Livinho', track_url: 'https://storage.googleapis.com/maker-suite-assets/funk-5.mp3' },
-    ]);
-};
-
 
 // Live Audio Session Functions
 

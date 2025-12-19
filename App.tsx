@@ -14,7 +14,6 @@ import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSessi
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 import { NotificationHelpModal } from './components/NotificationHelpModal';
-import { MusicSelectionModal } from './components/MusicSelectionModal';
 
 // Since there is no auth, we'll hardcode the user ID.
 // In a real app, this would come from the authenticated user session.
@@ -55,11 +54,6 @@ function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Story creation flow state
-  const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([]);
-  const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
-  const [storyFileToUpload, setStoryFileToUpload] = useState<File | null>(null);
-
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -76,12 +70,8 @@ function App() {
     
     // Load non-essential data in the background without blocking the UI
     const loadSecondaryData = async () => {
-        const [fetchedLiveSessions, fetchedMusicTracks] = await Promise.all([
-            db.getActiveLiveSessions(),
-            db.getMusicTracks(),
-        ]);
+        const fetchedLiveSessions = await db.getActiveLiveSessions();
         setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
-        setMusicTracks(fetchedMusicTracks);
     };
 
     loadInitialData();
@@ -327,21 +317,12 @@ function App() {
     }
   }, [userProfile]);
   
-  const handleStartStoryCreation = useCallback((storyFile: File) => {
-    closeProfileModal();
-    setStoryFileToUpload(storyFile);
-    setIsMusicModalOpen(true);
-  }, [closeProfileModal]);
-
-  const handleAddStory = useCallback(async (musicTrack?: MusicTrack) => {
-      if(!userProfile || !storyFileToUpload) return;
-      setIsMusicModalOpen(false);
+  const handleAddStory = useCallback(async (storyFile: File) => {
+      if(!userProfile) return;
       setIsLoading(true);
 
-      const newStory = await db.addStory(userProfile.id, storyFileToUpload, { name: userProfile.name, avatarUrl: userProfile.avatarUrl }, musicTrack?.id);
+      const newStory = await db.addStory(userProfile.id, storyFile, { name: userProfile.name, avatarUrl: userProfile.avatarUrl });
       
-      setStoryFileToUpload(null);
-
       if (newStory) {
         setUserProfile(prevProfile => {
             if (!prevProfile) return null;
@@ -364,7 +345,12 @@ function App() {
       } else {
         setIsLoading(false);
       }
-  }, [userProfile, storyFileToUpload, appSettings.pushNotifications]);
+  }, [userProfile, appSettings.pushNotifications]);
+
+  const handleStartStoryCreation = useCallback((storyFile: File) => {
+    closeProfileModal();
+    handleAddStory(storyFile);
+  }, [closeProfileModal, handleAddStory]);
 
 
   const handleUpdateSettings = useCallback((newSettings: AppSettings) => {
@@ -459,12 +445,6 @@ function App() {
        <NotificationHelpModal
         isOpen={isNotificationHelpModalOpen}
         onClose={closeNotificationHelpModal}
-      />
-      <MusicSelectionModal
-        isOpen={isMusicModalOpen}
-        onClose={() => setIsMusicModalOpen(false)}
-        tracks={musicTracks}
-        onSelectTrack={handleAddStory}
       />
       {userProfile && userProfile.stories && userProfile.stories.length > 0 && (
         <StoryViewerModal
