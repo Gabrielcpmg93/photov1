@@ -62,29 +62,30 @@ function App() {
 
 
   useEffect(() => {
-    // Load critical data first to show the feed ASAP
-    const loadPrimaryData = async () => {
-      setIsLoading(true); // Main page loader
-      const fetchedPosts = await db.getPosts();
-      setPosts(fetchedPosts as Post[]);
-      setIsLoading(false); // Show feed, stop main loader
-    };
-
-    // Load secondary data in the background
-    const loadSecondaryData = async () => {
-      // These load in the background, without blocking the UI
-      const [fetchedProfile, fetchedLiveSessions, fetchedMusicTracks] = await Promise.all([
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      // Fetch posts and profile together. This is the critical data for initial interaction.
+      const [fetchedPosts, fetchedProfile] = await Promise.all([
+          db.getPosts(),
           db.getUserProfile(CURRENT_USER_ID),
-          db.getActiveLiveSessions(),
-          db.getMusicTracks(),
       ]);
+      setPosts(fetchedPosts as Post[]);
       setUserProfile(fetchedProfile as UserProfile);
-      setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
-      setMusicTracks(fetchedMusicTracks);
+      setIsLoading(false); // UI is now ready with essential data
+    };
+    
+    // Load non-essential data in the background without blocking the UI
+    const loadSecondaryData = async () => {
+        const [fetchedLiveSessions, fetchedMusicTracks] = await Promise.all([
+            db.getActiveLiveSessions(),
+            db.getMusicTracks(),
+        ]);
+        setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
+        setMusicTracks(fetchedMusicTracks);
     };
 
-    loadPrimaryData();
-    loadSecondaryData();
+    loadInitialData();
+    loadSecondaryData(); // Not awaited, runs in background
   }, []); // Empty dependency array means this runs only once on mount
 
 
