@@ -10,7 +10,7 @@ import { StoryViewerModal } from './components/StoryViewerModal';
 import { ChoiceModal } from './components/ChoiceModal';
 import { LiveAudioModal } from './components/LiveAudioModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost, MusicTrack } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 import { NotificationHelpModal } from './components/NotificationHelpModal';

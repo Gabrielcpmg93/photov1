@@ -25,19 +25,11 @@ export interface Post {
   created_at?: string;
 }
 
-export interface MusicTrack {
-  id: string;
-  title: string;
-  artist: string;
-  track_url: string;
-}
-
 export interface Story {
   id: string;
   imageUrl: string;
   createdAt: string;
   user: User;
-  musicTrack?: MusicTrack | null;
 }
 
 export interface UserProfile extends User {
@@ -75,4 +67,12 @@ export interface LiveComment {
     user: User;
     text: string;
     created_at: string;
+}
+
+// FIX: Add missing MusicTrack interface
+export interface MusicTrack {
+  id: string;
+  title: string;
+  artist: string;
+  track_url: string;
 }
