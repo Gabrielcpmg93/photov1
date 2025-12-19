@@ -61,24 +61,32 @@ function App() {
   const [storyFileToUpload, setStoryFileToUpload] = useState<File | null>(null);
 
 
-  const loadAppDate = useCallback(async () => {
-    setIsLoading(true);
-    const [fetchedPosts, fetchedProfile, fetchedLiveSessions, fetchedMusicTracks] = await Promise.all([
-        db.getPosts(),
-        db.getUserProfile(CURRENT_USER_ID),
-        db.getActiveLiveSessions(),
-        db.getMusicTracks(),
-    ]);
-    setPosts(fetchedPosts as Post[]);
-    setUserProfile(fetchedProfile as UserProfile);
-    setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
-    setMusicTracks(fetchedMusicTracks);
-    setIsLoading(false);
-  }, []);
-
   useEffect(() => {
-    loadAppDate();
-  }, [loadAppDate]);
+    // Load critical data first to show the feed ASAP
+    const loadPrimaryData = async () => {
+      setIsLoading(true); // Main page loader
+      const fetchedPosts = await db.getPosts();
+      setPosts(fetchedPosts as Post[]);
+      setIsLoading(false); // Show feed, stop main loader
+    };
+
+    // Load secondary data in the background
+    const loadSecondaryData = async () => {
+      // These load in the background, without blocking the UI
+      const [fetchedProfile, fetchedLiveSessions, fetchedMusicTracks] = await Promise.all([
+          db.getUserProfile(CURRENT_USER_ID),
+          db.getActiveLiveSessions(),
+          db.getMusicTracks(),
+      ]);
+      setUserProfile(fetchedProfile as UserProfile);
+      setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
+      setMusicTracks(fetchedMusicTracks);
+    };
+
+    loadPrimaryData();
+    loadSecondaryData();
+  }, []); // Empty dependency array means this runs only once on mount
+
 
   // Real-time subscription for new posts
   useEffect(() => {
