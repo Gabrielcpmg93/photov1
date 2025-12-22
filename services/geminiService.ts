@@ -42,3 +42,30 @@ export const generateCaptionForImage = async (imageFile: File): Promise<string> 
     return "Ocorreu um erro ao gerar a legenda. Verifique o console para mais detalhes.";
   }
 };
+
+export const translateText = async (text: string, targetLanguage: string): Promise<string> => {
+  if (!process.env.API_KEY) {
+    throw new Error("API Key não encontrada.");
+  }
+  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  try {
+    const prompt = `Translate the following text to ${targetLanguage}. Provide only the translation, without any introductory phrases or quotes: "${text}"`;
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+
+    if (response.text) {
+      return response.text.trim();
+    }
+    
+    throw new Error("A resposta da API de tradução estava vazia.");
+
+  } catch (error) {
+    console.error("Error translating text with Gemini:", error);
+    throw new Error("Ocorreu um erro ao traduzir o texto.");
+  }
+};

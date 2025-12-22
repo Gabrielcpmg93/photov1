@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../services/supabaseService';
 import * as db from '../services/supabaseService';
+import { translateText } from '../services/geminiService';
 import type { LiveSession, UserProfile, LiveComment, LiveSessionWithHost } from '../types';
-import { IconX, IconSend, IconUsers, IconMic, IconMicOff, IconVolume2, IconVolumeX } from './Icons';
+import { IconX, IconSend, IconUsers, IconMic, IconMicOff, IconVolume2, IconVolumeX, IconGlobe } from './Icons';
 import { LiveIndicator } from './LiveIndicator';
+import { TranslationMenu } from './TranslationMenu';
 
 type Role = 'host' | 'listener';
 
@@ -47,6 +49,9 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const [error, setError] = useState<string | null>(null);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [selectedComment, setSelectedComment] = useState<LiveComment | null>(null);
+  const [translations, setTranslations] = useState<Map<string, string>>(new Map());
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -56,6 +61,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const gainNodeRef = useRef<GainNode | null>(null);
   const channelRef = useRef<any>(null);
   const sessionStatusChannelRef = useRef<any>(null);
+  const pressTimer = useRef<number | null>(null);
 
   const playbackStateRef = useRef(new Map<string, { queue: AudioBuffer[], isPlaying: boolean, nextStartTime: number }>());
 
@@ -286,6 +292,44 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     }
   };
 
+  const handlePressStart = (comment: LiveComment) => {
+    pressTimer.current = window.setTimeout(() => {
+      setSelectedComment(comment);
+    }, 500);
+  };
+
+  const handlePressEnd = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  const handleTranslate = async (language: string) => {
+    if (!selectedComment) return;
+    setIsTranslating(true);
+    try {
+        const translatedText = await translateText(selectedComment.text, language);
+        setTranslations(prev => new Map(prev).set(selectedComment.id, translatedText));
+    } catch (error) {
+        console.error("Translation failed:", error);
+        alert('Não foi possível traduzir o comentário.');
+    } finally {
+        setIsTranslating(false);
+        setSelectedComment(null);
+    }
+  };
+
+  const handleRevertTranslation = () => {
+      if (!selectedComment) return;
+      setTranslations(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(selectedComment.id);
+          return newMap;
+      });
+      setSelectedComment(null);
+  };
+
   if (!isOpen) return null;
   
   return (
@@ -338,12 +382,47 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         {/* Comments */}
         <div className="flex-1 flex flex-col mt-4 min-h-0">
              <div className="flex-1 bg-black/30 rounded-t-2xl p-4 overflow-y-auto space-y-3">
-                 {comments.map(c => <div key={c.id} className="flex items-start animate-fade-in-up"><img src={c.user.avatarUrl} alt={c.user.name} className="w-8 h-8 rounded-full mr-3" /><div><p className="font-semibold text-indigo-300 text-sm">{c.user.name}</p><p className="text-white">{c.text}</p></div></div>)}
+                 {comments.map(c => {
+                    const isTranslated = translations.has(c.id);
+                    return (
+                        <div 
+                            key={c.id} 
+                            onMouseDown={() => handlePressStart(c)}
+                            onMouseUp={handlePressEnd}
+                            onTouchStart={() => handlePressStart(c)}
+                            onTouchEnd={handlePressEnd}
+                            className="flex items-start animate-fade-in-up cursor-pointer"
+                        >
+                            <img src={c.user.avatarUrl} alt={c.user.name} className="w-8 h-8 rounded-full mr-3" />
+                            <div>
+                                <p className="font-semibold text-indigo-300 text-sm">{c.user.name}</p>
+                                <p className="text-white flex items-center">
+                                    {isTranslated ? translations.get(c.id) : c.text}
+                                    {isTranslated && (
+                                        <button onClick={() => setSelectedComment(c)} className="ml-2 text-gray-400 hover:text-white">
+                                            <IconGlobe className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                 })}
                  <div ref={commentsEndRef}></div>
             </div>
             <form onSubmit={handleCommentSubmit} className="bg-black/50 rounded-b-2xl p-4 flex items-center space-x-3"><img src={currentUser.avatarUrl} alt="Você" className="w-9 h-9 rounded-full" /><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Envie um comentário..." className="w-full bg-gray-800 text-white border-transparent rounded-full py-2 px-4 focus:ring-2 focus:ring-indigo-500" /><button type="submit" className="p-3 bg-indigo-600 rounded-full text-white hover:bg-indigo-500 transition-colors disabled:bg-gray-700"><IconSend className="w-5 h-5"/></button></form>
         </div>
       </div>
+      
+      {selectedComment && (
+        <TranslationMenu
+            isTranslating={isTranslating}
+            hasTranslation={translations.has(selectedComment.id)}
+            onTranslate={handleTranslate}
+            onRevert={handleRevertTranslation}
+            onClose={() => setSelectedComment(null)}
+        />
+      )}
 
       <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .3s ease-out forwards}@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in-up{animation:fadeInUp .5s ease-out forwards}`}</style>
     </div>
