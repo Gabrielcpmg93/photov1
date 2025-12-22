@@ -212,6 +212,58 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     };
   }, [isOpen, initialSession.id, currentUser, isHost, schedulePlayback, startBroadcasting, stopBroadcasting, onClose]);
   
+  // Real-time comments subscription
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchInitialComments = async () => {
+        const { data, error } = await supabase
+            .from('live_comments')
+            .select('*')
+            .eq('session_id', initialSession.id)
+            .order('created_at', { ascending: true });
+        
+        if (error) {
+            console.error('Error fetching initial comments:', error);
+        } else {
+            const formattedComments: LiveComment[] = data.map(c => ({
+                id: c.id,
+                session_id: c.session_id,
+                text: c.text,
+                created_at: c.created_at,
+                user: { name: c.user_name, avatarUrl: c.user_avatar_url }
+            }));
+            setComments(formattedComments);
+        }
+    };
+    fetchInitialComments();
+
+    const commentsChannel = supabase
+      .channel(`live-comments:${initialSession.id}`)
+      .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'live_comments',
+          filter: `session_id=eq.${initialSession.id}`,
+        },
+        (payload) => {
+          const newCommentData = payload.new;
+          const formattedComment: LiveComment = {
+            id: newCommentData.id,
+            session_id: newCommentData.session_id,
+            text: newCommentData.text,
+            created_at: newCommentData.created_at,
+            user: { name: newCommentData.user_name, avatarUrl: newCommentData.user_avatar_url }
+          };
+          setComments((prevComments) => [...prevComments, formattedComment]);
+        }
+      ).subscribe();
+
+    return () => {
+      supabase.removeChannel(commentsChannel);
+    };
+  }, [isOpen, initialSession.id]);
+
   useEffect(() => {
     if (gainNodeRef.current) {
       gainNodeRef.current.gain.value = volume;
@@ -225,6 +277,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newComment.trim()) {
+      // The comment is inserted, and the real-time subscription will update the UI for all clients.
       await db.addLiveComment(initialSession.id, currentUser, newComment.trim());
       setNewComment('');
     }
