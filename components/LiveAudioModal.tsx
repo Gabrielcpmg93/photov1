@@ -100,7 +100,10 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         const l = inputData.length;
         const int16 = new Int16Array(l);
         for (let i = 0; i < l; i++) {
-            int16[i] = inputData[i] < 0 ? inputData[i] * 32768 : inputData[i] * 32767;
+            // Clamp the sample to the [-1, 1] range to prevent overflow/corruption.
+            const sample = Math.max(-1, Math.min(1, inputData[i]));
+            // Convert to 16-bit integer.
+            int16[i] = sample < 0 ? sample * 32768 : sample * 32767;
         }
         const encodedChunk = encode(new Uint8Array(int16.buffer));
         channelRef.current.send({
