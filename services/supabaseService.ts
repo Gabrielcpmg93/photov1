@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession, LiveComment, LiveSessionWithHost } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
@@ -263,119 +263,5 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
         imageUrl: data.image_url,
         createdAt: data.created_at,
         user: user,
-    };
-};
-
-
-// Live Audio Session Functions
-
-export const getActiveLiveSessions = async (): Promise<LiveSessionWithHost[]> => {
-    const { data, error } = await supabase
-        .from('live_sessions')
-        .select(`
-            *,
-            host:profiles(name, avatar_url)
-        `)
-        .eq('is_live', true)
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error('Error fetching active live sessions:', error.message);
-        return [];
-    }
-
-    return data.map((session: any) => ({
-        id: session.id,
-        host_id: session.host_id,
-        is_live: session.is_live,
-        created_at: session.created_at,
-        host: {
-            name: session.host.name,
-            avatarUrl: session.host.avatar_url
-        }
-    }));
-};
-
-export const getLiveSessionById = async (sessionId: string): Promise<LiveSessionWithHost | null> => {
-    const { data, error } = await supabase
-        .from('live_sessions')
-        .select(`
-            *,
-            host:profiles(name, avatar_url)
-        `)
-        .eq('id', sessionId)
-        .eq('is_live', true)
-        .single();
-
-    if (error || !data || !data.host) {
-        return null;
-    }
-    
-    const hostData = Array.isArray(data.host) ? data.host[0] : data.host;
-
-    return {
-        id: data.id,
-        host_id: data.host_id,
-        is_live: data.is_live,
-        created_at: data.created_at,
-        host: {
-            name: hostData.name,
-            avatarUrl: hostData.avatar_url
-        }
-    };
-};
-
-
-export const createLiveSession = async (hostId: string): Promise<LiveSession | null> => {
-    const { data, error } = await supabase
-        .from('live_sessions')
-        .insert({ host_id: hostId, is_live: true })
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Error creating live session:', error.message);
-        return null;
-    }
-    return data;
-};
-
-export const endLiveSession = async (sessionId: string) => {
-    const { error } = await supabase
-        .from('live_sessions')
-        .update({ is_live: false })
-        .eq('id', sessionId);
-    
-    if (error) {
-        console.error('Error ending live session:', error.message);
-    }
-};
-
-export const addLiveComment = async (sessionId: string, user: User, text: string): Promise<LiveComment | null> => {
-    const { data, error } = await supabase
-        .from('live_comments')
-        .insert({
-            session_id: sessionId,
-            user_name: user.name,
-            user_avatar_url: user.avatarUrl,
-            text
-        })
-        .select()
-        .single();
-    
-    if (error) {
-        console.error('Error adding live comment:', error.message);
-        return null;
-    }
-
-    return {
-        id: data.id,
-        session_id: data.session_id,
-        text: data.text,
-        created_at: data.created_at,
-        user: {
-            name: data.user_name,
-            avatarUrl: data.user_avatar_url
-        }
     };
 };

@@ -97,27 +97,27 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
   return (
     <div 
-      className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 transition-opacity duration-300"
+      className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 transition-opacity duration-300 animate-fade-in"
       onClick={handleOverlayClick}
     >
       <div 
         ref={modalRef}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto transform scale-95 transition-all duration-300 animate-fade-in-up"
+        className="bg-gray-800/50 backdrop-blur-2xl border border-white/10 text-white rounded-2xl shadow-2xl w-full max-w-md max-h-full overflow-y-auto transform scale-95 transition-all duration-300"
         style={{ animation: 'fadeInUp 0.3s ease-out forwards' }}
       >
         <div className="p-6 relative">
-          <h2 className="text-2xl font-bold text-center mb-4 text-gray-900 dark:text-white">Criar Nova Postagem</h2>
-          <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors">
+          <h2 className="text-2xl font-bold text-center mb-4 text-white">Criar Nova Postagem</h2>
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
             <IconX className="w-6 h-6" />
           </button>
           <form onSubmit={handleSubmit}>
             {!previewUrl ? (
               <div
-                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center cursor-pointer hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
+                className="border-2 border-dashed border-gray-500 rounded-lg p-10 text-center cursor-pointer hover:border-indigo-400 hover:bg-white/5 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <IconUpload className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-2" />
-                <p className="text-gray-500 dark:text-gray-400">Arraste e solte uma imagem ou clique para selecionar</p>
+                <IconUpload className="w-12 h-12 mx-auto text-gray-500 mb-2" />
+                <p className="text-gray-400">Arraste e solte ou clique para selecionar</p>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -138,14 +138,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
                   placeholder="Escreva uma legenda..."
-                  className="w-full p-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                  className="w-full p-3 bg-white/5 text-white border border-white/10 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
                   rows={3}
                 />
                 <button
                   type="button"
                   onClick={handleGenerateCaption}
                   disabled={isGenerating}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-semibold transition-colors disabled:bg-purple-800 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-purple-600/80 hover:bg-purple-600 rounded-lg font-semibold transition-colors disabled:bg-purple-800/50 disabled:cursor-not-allowed"
                 >
                   {isGenerating ? <LoadingSpinner /> : <IconSparkles className="w-5 h-5" />}
                   <span>{isGenerating ? 'Gerando...' : 'Gerar Legenda com IA'}</span>
@@ -153,12 +153,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               </div>
             )}
             
-            {error && <p className="text-red-500 dark:text-red-400 text-sm mt-2">{error}</p>}
+            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
             
             <button
               type="submit"
               disabled={!imageFile || !caption}
-              className="w-full mt-6 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-bold text-lg transition-colors disabled:bg-indigo-800 disabled:cursor-not-allowed disabled:text-gray-400"
+              className="w-full mt-6 px-4 py-3 bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 rounded-lg font-bold text-lg transition-all disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed disabled:text-gray-400 transform hover:scale-105"
             >
               Postar
             </button>
@@ -166,6 +166,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         </div>
       </div>
       <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeInUp {
           from { opacity: 0; transform: scale(0.95) translateY(20px); }
           to { opacity: 1; transform: scale(1) translateY(0); }

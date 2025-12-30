@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-," />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
@@ -11,8 +11,43 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+      :root {
+        --background-dark: #0A0A0A;
+        --accent-color: #8B5CF6;
+        --accent-glow: rgba(139, 92, 246, 0.4);
+        --accent-secondary-glow: rgba(59, 130, 246, 0.3);
+      }
       body {
         font-family: 'Inter', sans-serif;
+      }
+      body.dark {
+        background-color: var(--background-dark);
+        position: relative;
+      }
+      .aurora-background {
+        position: relative;
+        overflow: hidden;
+      }
+      .aurora-background::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 150%;
+        height: 150%;
+        background: 
+          radial-gradient(circle 500px at 20% 20%, var(--accent-glow), transparent 80%),
+          radial-gradient(circle 400px at 80% 90%, var(--accent-secondary-glow), transparent 80%);
+        animation: aurora 20s linear infinite;
+        z-index: -1;
+        opacity: 0.5;
+        filter: blur(50px);
+      }
+      @keyframes aurora {
+        0% { transform: translate(-50%, -50%) rotate(0deg) scale(1.2); }
+        50% { transform: translate(-50%, -50%) rotate(180deg) scale(1.5); }
+        100% { transform: translate(-50%, -50%) rotate(360deg) scale(1.2); }
       }
     </style>
   <script>

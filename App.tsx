@@ -7,10 +7,8 @@ import { PostDetailModal } from './components/PostDetailModal';
 import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
-import { ChoiceModal } from './components/ChoiceModal';
-import { LiveAudioModal } from './components/LiveAudioModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionWithHost } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 import { NotificationHelpModal } from './components/NotificationHelpModal';
@@ -39,11 +37,6 @@ const showNotification = (title: string, options: NotificationOptions) => {
 
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
-  const [isLiveAudioModalOpen, setIsLiveAudioModalOpen] = useState(false);
-  const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | LiveSessionWithHost | null>(null);
-  const [userRoleInLive, setUserRoleInLive] = useState<'host' | 'listener' | null>(null);
-  const [activeLiveSessions, setActiveLiveSessions] = useState<LiveSessionWithHost[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -67,15 +60,8 @@ function App() {
       setUserProfile(fetchedProfile as UserProfile);
       setIsLoading(false); // UI is now ready with essential data
     };
-    
-    // Load non-essential data in the background without blocking the UI
-    const loadSecondaryData = async () => {
-        const fetchedLiveSessions = await db.getActiveLiveSessions();
-        setActiveLiveSessions(fetchedLiveSessions as LiveSessionWithHost[]);
-    };
 
     loadInitialData();
-    loadSecondaryData(); // Not awaited, runs in background
   }, []); // Empty dependency array means this runs only once on mount
 
 
@@ -103,39 +89,6 @@ function App() {
     };
   }, [appSettings.pushNotifications, userProfile]);
 
-  // Real-time subscription for live sessions
-  useEffect(() => {
-    const handleSessionChange = async (payload: any) => {
-        const sessionData = payload.new;
-
-        // If session is no longer live, remove it.
-        if (!sessionData.is_live) {
-            setActiveLiveSessions(prev => prev.filter(s => s.id !== sessionData.id));
-            return;
-        }
-
-        // If session is live (new or updated), fetch details and upsert into state.
-        const sessionWithHost = await db.getLiveSessionById(sessionData.id);
-        if (sessionWithHost) {
-            setActiveLiveSessions(prev => {
-                // Filter out the old version of the session to prevent duplicates.
-                const otherSessions = prev.filter(s => s.id !== sessionWithHost.id);
-                // Prepend the new/updated session to keep it at the front.
-                return [sessionWithHost, ...otherSessions];
-            });
-        }
-    };
-
-    const liveSessionsChannel = supabase.channel('public:live_sessions')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_sessions' }, handleSessionChange)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_sessions' }, handleSessionChange)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(liveSessionsChannel);
-    };
-  }, []);
-
 
   useEffect(() => {
     if (appSettings.darkMode) {
@@ -145,13 +98,7 @@ function App() {
     }
   }, [appSettings.darkMode]);
 
-  const openChoiceModal = useCallback(() => setIsChoiceModalOpen(true), []);
-  const closeChoiceModal = useCallback(() => setIsChoiceModalOpen(false), []);
-  
-  const openCreateModal = useCallback(() => {
-    closeChoiceModal();
-    setIsCreateModalOpen(true);
-  }, [closeChoiceModal]);
+  const openCreateModal = useCallback(() => setIsCreateModalOpen(true), []);
   const closeCreateModal = useCallback(() => setIsCreateModalOpen(false), []);
   
   const openProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
@@ -173,37 +120,6 @@ function App() {
     }
   }, [userProfile?.stories, closeProfileModal]);
   const closeStoryViewer = useCallback(() => setIsStoryViewerOpen(false), []);
-
-  const handleStartLive = useCallback(async () => {
-    if (!userProfile) return;
-    closeChoiceModal();
-    setIsLoading(true);
-    const session = await db.createLiveSession(userProfile.id);
-    if (session) {
-      setCurrentLiveSession(session);
-      setUserRoleInLive('host');
-      setIsLiveAudioModalOpen(true);
-    }
-    setIsLoading(false);
-  }, [userProfile, closeChoiceModal]);
-
-  const handleJoinLive = useCallback((session: LiveSessionWithHost) => {
-    setCurrentLiveSession(session);
-    setUserRoleInLive('listener');
-    setIsLiveAudioModalOpen(true);
-  }, []);
-
-  const handleEndLive = useCallback(async () => {
-    if (currentLiveSession && userRoleInLive === 'host') {
-      // Optimistically remove the session from the UI for the host
-      setActiveLiveSessions(prev => prev.filter(s => s.id !== currentLiveSession.id));
-      await db.endLiveSession(currentLiveSession.id);
-    }
-    setIsLiveAudioModalOpen(false);
-    setCurrentLiveSession(null);
-    setUserRoleInLive(null);
-  }, [currentLiveSession, userRoleInLive]);
-
 
   const handleSelectPost = useCallback(async (post: Post) => {
     const comments = await db.getCommentsForPost(post.id);
@@ -373,9 +289,9 @@ function App() {
     setAppSettings(newSettings);
   }, [appSettings, openNotificationHelpModal]);
   
-  if (isLoading && !selectedPost && !isLiveAudioModalOpen) {
+  if (isLoading && !selectedPost) {
     return (
-        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+        <div className="min-h-screen bg-gray-100 dark:bg-transparent flex items-center justify-center">
             <div className="flex flex-col items-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
                 <p className="mt-4 text-gray-600 dark:text-gray-300">Carregando...</p>
@@ -387,27 +303,17 @@ function App() {
   const userPosts = userProfile ? posts.filter(p => p.user_id === userProfile.id) : [];
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
-      <Header onNewPostClick={openChoiceModal} onProfileClick={openProfileModal} />
+    <div className={`min-h-screen bg-gray-100 text-gray-900 dark:bg-transparent dark:text-gray-100 transition-colors duration-300 ${appSettings.darkMode ? 'aurora-background' : ''}`}>
+      <Header onNewPostClick={openCreateModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
         <Feed 
           posts={posts} 
           onPostClick={handleSelectPost} 
-          liveSessions={activeLiveSessions} 
-          onJoinLive={handleJoinLive} 
           currentUser={userProfile}
           onDeletePost={handleDeletePost}
           onToggleLike={handleToggleLike}
-          showLiveSessions={appSettings.showLiveSessions}
         />
       </main>
-
-      <ChoiceModal 
-        isOpen={isChoiceModalOpen}
-        onClose={closeChoiceModal}
-        onSelectPost={openCreateModal}
-        onSelectLive={handleStartLive}
-      />
 
       <CreatePostModal
         isOpen={isCreateModalOpen}
@@ -452,15 +358,6 @@ function App() {
             onClose={closeStoryViewer}
             stories={userProfile.stories}
             user={userProfile}
-        />
-      )}
-      {isLiveAudioModalOpen && currentLiveSession && userProfile && userRoleInLive && (
-        <LiveAudioModal
-          isOpen={isLiveAudioModalOpen}
-          onClose={handleEndLive}
-          session={currentLiveSession}
-          currentUser={userProfile}
-          role={userRoleInLive}
         />
       )}
     </div>

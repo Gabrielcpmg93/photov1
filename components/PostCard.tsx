@@ -8,8 +8,6 @@ interface PostCardProps {
   onClick: (post: Post) => void;
   currentUser: UserProfile | null;
   onDeletePost: (postId: string, imageUrl: string) => void;
-  // This prop is missing, but needed for the like button to work directly.
-  // Assuming it will be passed down from App.tsx through Feed.tsx
   onToggleLike?: (postId: string) => void;
 }
 
@@ -17,12 +15,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, 
   const isOwner = currentUser && currentUser.id === post.user_id;
 
   const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent opening the modal
+    e.stopPropagation();
     onDeletePost(post.id, post.imageUrl);
   };
 
   const handleLike = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent opening the modal
+    e.stopPropagation();
     if (onToggleLike) {
       onToggleLike(post.id);
     }
@@ -30,49 +28,55 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, 
 
   return (
     <div
-      className="group text-left w-full overflow-hidden rounded-xl shadow-lg bg-white dark:bg-gray-800 break-inside-avoid-column transform transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 flex flex-col"
+      className="group relative text-white w-full aspect-[4/5] overflow-hidden rounded-2xl shadow-lg bg-gray-800 transform transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-500/30 hover:-translate-y-1"
+      onClick={() => onClick(post)}
     >
-      <div onClick={() => onClick(post)} className="relative cursor-pointer">
-        {isOwner && (
-          <button
-            onClick={handleDelete}
-            className="absolute top-2 right-2 z-10 p-2 bg-black/50 rounded-full text-white hover:bg-red-500 transition-colors"
-            aria-label="Excluir postagem"
-          >
-            <IconTrash className="w-5 h-5" />
-          </button>
-        )}
-        <img
-          src={post.imageUrl}
-          alt={post.caption}
-          className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
-          loading="lazy"
-        />
-      </div>
+      <img
+        src={post.imageUrl}
+        alt={post.caption}
+        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity" />
       
-      <div className="p-4 flex-grow flex flex-col">
-        <div className="flex items-center mb-3">
+      {isOwner && (
+        <button
+          onClick={handleDelete}
+          className="absolute top-3 right-3 z-10 p-2 bg-black/40 rounded-full text-white/80 hover:bg-red-500 hover:text-white transition-colors"
+          aria-label="Excluir postagem"
+        >
+          <IconTrash className="w-5 h-5" />
+        </button>
+      )}
+
+      <div className="relative h-full flex flex-col justify-end p-4 cursor-pointer">
+        <div 
+          className="flex-grow" // This element will push content to the bottom
+          onClick={() => onClick(post)} 
+        />
+        
+        <div className="flex items-center mb-2">
             <img
                 src={post.user.avatarUrl}
                 alt={post.user.name}
-                className="w-9 h-9 rounded-full border-2 border-gray-200 dark:border-gray-600 mr-3"
+                className="w-9 h-9 rounded-full border-2 border-white/50 mr-3"
             />
-            <span className="font-bold text-sm text-gray-800 dark:text-gray-100">{post.user.name}</span>
+            <span className="font-bold text-sm text-white drop-shadow-md">{post.user.name}</span>
         </div>
 
-        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-2 flex-grow cursor-pointer" onClick={() => onClick(post)}>
+        <p className="text-sm text-white/90 mb-3 line-clamp-2 drop-shadow-md">
           {post.caption}
         </p>
         
-        <div className="flex items-center space-x-4 text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3">
-          <button onClick={handleLike} className="flex items-center space-x-1 group/like focus:outline-none">
+        <div className="flex items-center space-x-4 text-white/80 border-t border-white/20 pt-3">
+          <button onClick={handleLike} className="flex items-center space-x-1.5 group/like focus:outline-none transition-transform transform hover:scale-105">
             <IconHeart 
-              className={`w-6 h-6 transition-colors transform group-hover/like:scale-110 ${post.liked ? 'text-red-500' : 'text-gray-500 dark:text-gray-400 group-hover/like:text-red-500'}`} 
+              className={`w-6 h-6 transition-colors ${post.liked ? 'text-red-500' : 'text-white/80 group-hover/like:text-white'}`} 
               fill={post.liked ? 'currentColor' : 'none'}
             />
             <span className="font-semibold text-sm">{post.likes}</span>
           </button>
-          <div onClick={() => onClick(post)} className="flex items-center space-x-1 cursor-pointer">
+          <div className="flex items-center space-x-1.5">
             <IconMessageCircle className="w-6 h-6" />
             <span className="font-semibold text-sm">{post.comments}</span>
           </div>

@@ -63,24 +63,24 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
     >
       <div
         ref={modalRef}
-        className="bg-white dark:bg-gray-900 w-full max-w-5xl h-full max-h-[90vh] rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden animate-fade-in-up"
+        className="bg-transparent w-full max-w-5xl h-full max-h-[90vh] rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden animate-fade-in-up"
       >
-        <div className="w-full md:w-2/3 bg-black flex items-center justify-center">
+        <div className="w-full md:w-2/3 bg-black/50 flex items-center justify-center rounded-l-2xl">
           <img src={post.imageUrl} alt={post.caption} className="max-w-full max-h-full object-contain" />
         </div>
-        <div className="w-full md:w-1/3 flex flex-col bg-white dark:bg-gray-800">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div className="w-full md:w-1/3 flex flex-col bg-gray-800/50 backdrop-blur-xl border border-white/10 rounded-r-2xl">
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center">
               <img src={post.user.avatarUrl} alt={post.user.name} className="w-10 h-10 rounded-full mr-3" />
-              <span className="font-bold text-gray-900 dark:text-white">{post.user.name}</span>
+              <span className="font-bold text-white">{post.user.name}</span>
             </div>
             <div className="flex items-center space-x-2">
                 {isOwner && (
-                    <button onClick={() => onDeletePost(post.id, post.imageUrl)} className="text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors" aria-label="Excluir postagem">
+                    <button onClick={() => onDeletePost(post.id, post.imageUrl)} className="text-gray-400 hover:text-red-400 transition-colors" aria-label="Excluir postagem">
                         <IconTrash className="w-6 h-6" />
                     </button>
                 )}
-                <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white" aria-label="Fechar">
+                <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Fechar">
                     <IconX className="w-6 h-6" />
                 </button>
             </div>
@@ -90,42 +90,42 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
             <div className="flex items-start">
                  <img src={post.user.avatarUrl} alt={post.user.name} className="w-8 h-8 rounded-full mr-3 mt-1" />
                  <div>
-                    <span className="font-bold text-sm text-gray-900 dark:text-white">{post.user.name}</span>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">{post.caption}</p>
+                    <span className="font-bold text-sm text-white">{post.user.name}</span>
+                    <p className="text-sm text-gray-300">{post.caption}</p>
                  </div>
             </div>
 
-            <hr className="border-gray-200 dark:border-gray-700" />
+            <hr className="border-white/10" />
             <div className="space-y-4">
               {post.commentList && post.commentList.length > 0 ? (
                 post.commentList.map(comment => (
                   <div key={comment.id} className="flex items-start">
                     <img src={comment.user.avatarUrl} alt={comment.user.name} className="w-8 h-8 rounded-full mr-3 mt-1" />
                     <div>
-                      <span className="font-bold text-sm text-gray-900 dark:text-white">{comment.user.name}</span>
-                      <p className="text-sm text-gray-600 dark:text-gray-300">{comment.text}</p>
+                      <span className="font-bold text-sm text-white">{comment.user.name}</span>
+                      <p className="text-sm text-gray-300">{comment.text}</p>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">Nenhum comentário ainda.</p>
+                <p className="text-sm text-gray-500 text-center py-4">Nenhum comentário ainda.</p>
               )}
             </div>
             <div ref={commentsEndRef} />
           </div>
 
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="p-4 border-t border-white/10 bg-gray-800/50">
             <div className="flex items-center space-x-4 mb-2">
               <button onClick={() => onToggleLike(post.id)} className="flex items-center space-x-2 group focus:outline-none">
                 <IconHeart 
-                  className={`w-7 h-7 transition-colors transform group-hover:scale-110 ${post.liked ? 'text-red-500' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white'}`} 
+                  className={`w-7 h-7 transition-colors transform group-hover:scale-110 ${post.liked ? 'text-red-500' : 'text-gray-400 group-hover:text-white'}`} 
                   fill={post.liked ? 'currentColor' : 'none'}
                 />
-                 <span className="font-semibold text-gray-900 dark:text-white">{post.likes}</span>
+                 <span className="font-semibold text-white">{post.likes}</span>
               </button>
               <div className="flex items-center space-x-2">
-                <IconMessageCircle className="w-7 h-7 text-gray-500 dark:text-gray-400" />
-                <span className="font-semibold text-gray-900 dark:text-white">{post.comments}</span>
+                <IconMessageCircle className="w-7 h-7 text-gray-400" />
+                <span className="font-semibold text-white">{post.comments}</span>
               </div>
             </div>
             <form onSubmit={handleCommentSubmit} className="flex items-center space-x-2">
@@ -135,9 +135,9 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     placeholder="Adicione um comentário..."
-                    className="w-full bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white border-transparent rounded-full py-2 px-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                    className="w-full bg-white/5 text-white border-transparent rounded-full py-2 px-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors placeholder-gray-400"
                 />
-              <button type="submit" disabled={!newComment.trim()} className="text-indigo-500 dark:text-indigo-400 font-semibold hover:text-indigo-600 dark:hover:text-indigo-300 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
+              <button type="submit" disabled={!newComment.trim()} className="text-indigo-400 font-semibold hover:text-indigo-300 disabled:text-gray-500 disabled:cursor-not-allowed">
                 Postar
               </button>
             </form>

@@ -11,9 +11,9 @@ interface SettingsModalProps {
 }
 
 const Toggle: React.FC<{ label: string; enabled: boolean; onChange: (enabled: boolean) => void }> = ({ label, enabled, onChange }) => (
-    <div className="flex items-center justify-between py-3">
-        <span className="text-gray-700 dark:text-gray-300">{label}</span>
-        <button onClick={() => onChange(!enabled)} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 focus:ring-indigo-500 ${enabled ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+    <div className="flex items-center justify-between py-4">
+        <span className="text-gray-300">{label}</span>
+        <button onClick={() => onChange(!enabled)} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 ${enabled ? 'bg-indigo-600' : 'bg-gray-600'}`}>
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
     </div>
@@ -53,17 +53,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
     >
       <div 
         ref={modalRef}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 animate-fade-in-up"
+        className="bg-gray-800/50 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 animate-fade-in-up"
       >
         <div className="p-6 relative">
           <div className="flex justify-between items-center mb-6">
-             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Configurações</h2>
-             <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+             <h2 className="text-2xl font-bold text-white">Configurações</h2>
+             <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
                 <IconX className="w-6 h-6" />
              </button>
           </div>
           
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-white/10">
             <Toggle label="Modo Noturno" enabled={settings.darkMode} onChange={(val) => handleSettingChange('darkMode', val)} />
             <Toggle label="Mostrar Sessões Ao Vivo" enabled={settings.showLiveSessions} onChange={(val) => handleSettingChange('showLiveSessions', val)} />
             <Toggle label="Notificações por E-mail" enabled={settings.emailNotifications} onChange={(val) => handleSettingChange('emailNotifications', val)} />

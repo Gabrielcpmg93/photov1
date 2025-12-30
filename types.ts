@@ -50,25 +50,6 @@ export interface AppSettings {
   showLiveSessions: boolean;
 }
 
-export interface LiveSession {
-  id: string;
-  host_id: string;
-  is_live: boolean;
-  created_at: string;
-}
-
-export interface LiveSessionWithHost extends LiveSession {
-    host: User;
-}
-
-export interface LiveComment {
-    id: string;
-    session_id: string;
-    user: User;
-    text: string;
-    created_at: string;
-}
-
 // FIX: Add missing MusicTrack interface
 export interface MusicTrack {
   id: string;
