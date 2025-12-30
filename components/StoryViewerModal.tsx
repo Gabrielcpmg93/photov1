@@ -40,6 +40,13 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
     };
   }, [isOpen, currentStoryIndex, stories]);
 
+  // Preload the next story image for a smoother transition
+  useEffect(() => {
+    if (isOpen && currentStoryIndex < stories.length - 1) {
+      const img = new Image();
+      img.src = stories[currentStoryIndex + 1].imageUrl;
+    }
+  }, [isOpen, currentStoryIndex, stories]);
 
   useEffect(() => {
     if (isOpen) {
@@ -87,7 +94,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
               {stories.map((_, index) => (
                 <div key={index} className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
                   {index < currentStoryIndex && <div className="h-full bg-white w-full"></div>}
-                  {index === currentStoryIndex && <div className="h-full bg-white animate-progress-bar"></div>}
+                  {index === currentStoryIndex && <div key={currentStoryIndex} className="h-full bg-white animate-progress-bar"></div>}
                 </div>
               ))}
             </div>

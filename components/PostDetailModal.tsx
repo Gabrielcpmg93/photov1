@@ -38,6 +38,11 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
     return () => window.removeEventListener('keydown', handleEsc);
   }, [onClose]);
   
+  useEffect(() => {
+    // Scroll to the bottom of the comments when a new one is added
+    commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [post.commentList]);
+
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
       onClose();
