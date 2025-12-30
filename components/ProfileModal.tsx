@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Post } from '../types';
 import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconCamera } from './Icons';
+import { ProfilePostThumbnail } from './ProfilePostThumbnail';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -12,12 +13,28 @@ interface ProfileModalProps {
   onOpenSettings: () => void;
   onStartStoryCreation: (storyFile: File) => void;
   onOpenStoryViewer: () => void;
+  onSelectPost: (post: Post) => void;
+  onDeletePost: (postId: string, imageUrl: string) => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, userPosts, onUpdateProfile, onOpenSettings, onStartStoryCreation, onOpenStoryViewer }) => {
+type ActiveTab = 'posts' | 'performance';
+
+export const ProfileModal: React.FC<ProfileModalProps> = ({ 
+    isOpen, 
+    onClose, 
+    userProfile, 
+    userPosts, 
+    onUpdateProfile, 
+    onOpenSettings, 
+    onStartStoryCreation, 
+    onOpenStoryViewer,
+    onSelectPost,
+    onDeletePost
+}) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile?.name ?? '');
   const [bio, setBio] = useState(userProfile?.bio ?? '');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
   const modalRef = useRef<HTMLDivElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
 
@@ -27,6 +44,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
         setName(userProfile.name);
         setBio(userProfile.bio);
       }
+      setActiveTab('posts'); // Reset to default tab on open
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -184,36 +202,67 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto mt-6 p-6 pt-0">
-          <h3 className="text-lg font-semibold text-gray-200 border-t border-white/10 pt-4">Desempenho</h3>
-          <div className="mt-4 space-y-3">
-              <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                  <div className="p-3 bg-indigo-500/80 rounded-lg mr-4">
-                      <IconCamera className="w-6 h-6 text-white" />
+        <div className="flex-1 overflow-y-auto mt-6">
+          <div className="border-b border-white/10 px-6">
+              <nav className="flex space-x-4">
+                  <button 
+                      onClick={() => setActiveTab('posts')}
+                      className={`px-3 py-2 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'posts' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                      Postagens
+                  </button>
+                  <button 
+                      onClick={() => setActiveTab('performance')}
+                      className={`px-3 py-2 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'performance' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                      Desempenho
+                  </button>
+              </nav>
+          </div>
+          <div className="p-6">
+            {activeTab === 'posts' && (
+              <div className="grid grid-cols-3 gap-1">
+                {userPosts.map(post => (
+                  <ProfilePostThumbnail 
+                    key={post.id} 
+                    post={post} 
+                    onClick={() => onSelectPost(post)} 
+                    onDelete={onDeletePost}
+                  />
+                ))}
+              </div>
+            )}
+            {activeTab === 'performance' && (
+               <div className="space-y-3">
+                  <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                      <div className="p-3 bg-indigo-500/80 rounded-lg mr-4">
+                          <IconCamera className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                          <p className="text-xl font-bold">{totalPosts}</p>
+                          <p className="text-sm text-gray-400">Total de Postagens</p>
+                      </div>
                   </div>
-                  <div>
-                      <p className="text-xl font-bold">{totalPosts}</p>
-                      <p className="text-sm text-gray-400">Total de Postagens</p>
+                  <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                      <div className="p-3 bg-red-500/80 rounded-lg mr-4">
+                          <IconHeart className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                          <p className="text-xl font-bold">{totalLikes}</p>
+                          <p className="text-sm text-gray-400">Total de Curtidas</p>
+                      </div>
+                  </div>
+                  <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                      <div className="p-3 bg-blue-500/80 rounded-lg mr-4">
+                          <IconMessageCircle className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                          <p className="text-xl font-bold">{totalComments}</p>
+                          <p className="text-sm text-gray-400">Total de Comentários</p>
+                      </div>
                   </div>
               </div>
-              <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                  <div className="p-3 bg-red-500/80 rounded-lg mr-4">
-                      <IconHeart className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                      <p className="text-xl font-bold">{totalLikes}</p>
-                      <p className="text-sm text-gray-400">Total de Curtidas</p>
-                  </div>
-              </div>
-              <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                  <div className="p-3 bg-blue-500/80 rounded-lg mr-4">
-                      <IconMessageCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                      <p className="text-xl font-bold">{totalComments}</p>
-                      <p className="text-sm text-gray-400">Total de Comentários</p>
-                  </div>
-              </div>
+            )}
           </div>
         </div>
 

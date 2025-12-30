@@ -346,6 +346,8 @@ function App() {
           onOpenSettings={openSettingsModal}
           onStartStoryCreation={handleStartStoryCreation}
           onOpenStoryViewer={openStoryViewer}
+          onSelectPost={handleSelectPostFromProfile}
+          onDeletePost={handleDeletePost}
       />
        <SettingsModal
         isOpen={isSettingsModalOpen}
