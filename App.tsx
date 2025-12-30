@@ -188,6 +188,24 @@ function App() {
     }
   }, [posts, selectedPost, appSettings.pushNotifications]);
 
+  const handleToggleSave = useCallback((postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+
+    const newSavedState = !post.saved;
+
+    // Optimistic update for UI responsiveness
+    const updatePostState = (p: Post) => ({ ...p, saved: newSavedState });
+
+    setPosts(currentPosts =>
+      currentPosts.map(p => (p.id === postId ? updatePostState(p) : p))
+    );
+
+    if (selectedPost && selectedPost.id === postId) {
+      setSelectedPost(prev => (prev ? updatePostState(prev) : null));
+    }
+  }, [posts, selectedPost]);
+
   const handleAddComment = useCallback(async (postId: string, commentText: string) => {
     if (!userProfile) return;
     
@@ -241,6 +259,27 @@ function App() {
         });
     }
   }, [userProfile]);
+
+  const handleUpdateProfilePicture = useCallback(async (file: File) => {
+    if (!userProfile) return;
+    
+    const newAvatarUrl = await db.updateUserProfilePicture(userProfile.id, file);
+    if (newAvatarUrl) {
+        // Update profile state
+        const updatedProfile = { ...userProfile, avatarUrl: newAvatarUrl };
+        setUserProfile(updatedProfile);
+
+        // Update posts in feed to reflect new avatar
+        setPosts(prevPosts => prevPosts.map(p => 
+            p.user_id === userProfile.id ? { ...p, user: { ...p.user, avatarUrl: newAvatarUrl } } : p
+        ));
+
+        // Update selected post if it's from the user
+        if (selectedPost && selectedPost.user_id === userProfile.id) {
+            setSelectedPost(prev => prev ? { ...prev, user: { ...prev.user, avatarUrl: newAvatarUrl } } : null);
+        }
+    }
+  }, [userProfile, selectedPost]);
   
   const handleAddStory = useCallback(async (storyFile: File) => {
       if(!userProfile) return;
@@ -319,6 +358,7 @@ function App() {
           currentUser={userProfile}
           onDeletePost={handleDeletePost}
           onToggleLike={handleToggleLike}
+          onToggleSave={handleToggleSave}
         />
       </main>
 
@@ -343,6 +383,7 @@ function App() {
           userProfile={userProfile}
           userPosts={userPosts}
           onUpdateProfile={handleUpdateProfile}
+          onUpdateProfilePicture={handleUpdateProfilePicture}
           onOpenSettings={openSettingsModal}
           onStartStoryCreation={handleStartStoryCreation}
           onOpenStoryViewer={openStoryViewer}

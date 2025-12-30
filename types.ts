@@ -21,6 +21,7 @@ export interface Post {
   likes: number;
   comments: number;
   liked?: boolean;
+  saved?: boolean;
   commentList?: Comment[];
   created_at?: string;
 }

@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { UserProfile, Post } from '../types';
+import type { UserProfile, Post, Comment as CommentType } from '../types';
 import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconCamera } from './Icons';
 import { ProfilePostThumbnail } from './ProfilePostThumbnail';
+import * as db from '../services/supabaseService';
+import { supabase } from '../services/supabaseService';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -10,6 +12,7 @@ interface ProfileModalProps {
   userProfile: UserProfile | null;
   userPosts: Post[];
   onUpdateProfile: (newProfile: Pick<UserProfile, 'name' | 'bio'>) => void;
+  onUpdateProfilePicture: (file: File) => void;
   onOpenSettings: () => void;
   onStartStoryCreation: (storyFile: File) => void;
   onOpenStoryViewer: () => void;
@@ -18,13 +21,15 @@ interface ProfileModalProps {
 }
 
 type ActiveTab = 'posts' | 'performance';
+type Activity = { type: 'comment', data: CommentType, post: Post };
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ 
     isOpen, 
     onClose, 
     userProfile, 
     userPosts, 
-    onUpdateProfile, 
+    onUpdateProfile,
+    onUpdateProfilePicture,
     onOpenSettings, 
     onStartStoryCreation, 
     onOpenStoryViewer,
@@ -35,8 +40,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [name, setName] = useState(userProfile?.name ?? '');
   const [bio, setBio] = useState(userProfile?.bio ?? '');
   const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
+  const [isUploading, setIsUploading] = useState(false);
+  const [activityFeed, setActivityFeed] = useState<Activity[]>([]);
+
   const modalRef = useRef<HTMLDivElement>(null);
   const storyInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -45,15 +54,58 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         setBio(userProfile.bio);
       }
       setActiveTab('posts'); // Reset to default tab on open
+      setActivityFeed([]); // Clear activity on open
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
+      setIsEditing(false);
     }
     return () => {
       document.body.style.overflow = 'unset';
     };
   }, [isOpen, userProfile]);
   
+  // Real-time activity feed effect
+  useEffect(() => {
+    if (activeTab !== 'performance' || !isOpen || !userProfile) {
+      return;
+    }
+
+    const userPostIds = userPosts.map(p => p.id);
+    if (userPostIds.length === 0) return;
+
+    const channel = supabase.channel('public:comments-profile')
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'comments',
+          filter: `post_id=in.(${userPostIds.join(',')})` 
+        },
+        (payload) => {
+          // Filter out own comments
+          if (payload.new.user_name === userProfile.name) {
+            return;
+          }
+          const newComment = db.formatComment(payload.new);
+          const post = userPosts.find(p => p.id === newComment.post_id);
+          if (post) {
+            setActivityFeed(prevFeed => [{
+              type: 'comment',
+              data: newComment,
+              post: post,
+            }, ...prevFeed].slice(0, 20)); // Keep feed to a reasonable size
+          }
+        }
+      ).subscribe();
+    
+    // Cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
+
+  }, [activeTab, isOpen, userPosts, userProfile]);
+
   const handleSave = () => {
     onUpdateProfile({ name, bio });
     setIsEditing(false);
@@ -77,6 +129,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const file = event.target.files?.[0];
     if (file) {
       onStartStoryCreation(file);
+    }
+  };
+
+  const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setIsUploading(true);
+      await onUpdateProfilePicture(file);
+      setIsUploading(false);
     }
   };
 
@@ -131,25 +192,48 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <button
                   onClick={hasStory ? onOpenStoryViewer : () => storyInputRef.current?.click()}
                   className={`p-1 rounded-full ${hasStory ? 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500' : 'border-2 border-dashed border-gray-500'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-purple-500 transition-all`}
+                  disabled={isEditing}
               >
                   <div className="p-1 bg-gray-800 rounded-full">
                       <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full" />
                   </div>
               </button>
-              <button
-                  onClick={() => storyInputRef.current?.click()}
-                  className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-1 border-2 border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 transform hover:scale-110 transition-transform"
-                  aria-label="Adicionar story"
-              >
-                  <IconPlusCircle className="w-6 h-6" strokeWidth={2} />
-              </button>
-              <input
-                  type="file"
-                  ref={storyInputRef}
-                  onChange={handleStoryFileChange}
-                  accept="image/*"
-                  className="hidden"
-              />
+              {isEditing ? (
+                  <>
+                    <button
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={isUploading}
+                        className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-2 border-4 border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 transform hover:scale-110 transition-transform"
+                        aria-label="Mudar foto do perfil"
+                    >
+                        {isUploading ? <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div> : <IconCamera className="w-5 h-5" />}
+                    </button>
+                    <input
+                        type="file"
+                        ref={avatarInputRef}
+                        onChange={handleAvatarFileChange}
+                        accept="image/*"
+                        className="hidden"
+                    />
+                  </>
+              ) : (
+                <>
+                  <button
+                      onClick={() => storyInputRef.current?.click()}
+                      className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-1 border-2 border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 transform hover:scale-110 transition-transform"
+                      aria-label="Adicionar story"
+                  >
+                      <IconPlusCircle className="w-6 h-6" strokeWidth={2} />
+                  </button>
+                  <input
+                      type="file"
+                      ref={storyInputRef}
+                      onChange={handleStoryFileChange}
+                      accept="image/*"
+                      className="hidden"
+                  />
+                </>
+              )}
             </div>
 
             {isEditing ? (
@@ -233,35 +317,62 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </div>
             )}
             {activeTab === 'performance' && (
-               <div className="space-y-3">
-                  <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                      <div className="p-3 bg-indigo-500/80 rounded-lg mr-4">
-                          <IconCamera className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                          <p className="text-xl font-bold">{totalPosts}</p>
-                          <p className="text-sm text-gray-400">Total de Postagens</p>
-                      </div>
-                  </div>
-                  <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                      <div className="p-3 bg-red-500/80 rounded-lg mr-4">
-                          <IconHeart className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                          <p className="text-xl font-bold">{totalLikes}</p>
-                          <p className="text-sm text-gray-400">Total de Curtidas</p>
-                      </div>
-                  </div>
-                  <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                      <div className="p-3 bg-blue-500/80 rounded-lg mr-4">
-                          <IconMessageCircle className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                          <p className="text-xl font-bold">{totalComments}</p>
-                          <p className="text-sm text-gray-400">Total de Comentários</p>
-                      </div>
-                  </div>
-              </div>
+               <div>
+                 <div className="space-y-3">
+                    <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                        <div className="p-3 bg-indigo-500/80 rounded-lg mr-4">
+                            <IconCamera className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-xl font-bold">{totalPosts}</p>
+                            <p className="text-sm text-gray-400">Total de Postagens</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                        <div className="p-3 bg-red-500/80 rounded-lg mr-4">
+                            <IconHeart className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-xl font-bold">{totalLikes}</p>
+                            <p className="text-sm text-gray-400">Total de Curtidas</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                        <div className="p-3 bg-blue-500/80 rounded-lg mr-4">
+                            <IconMessageCircle className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-xl font-bold">{totalComments}</p>
+                            <p className="text-sm text-gray-400">Total de Comentários</p>
+                        </div>
+                    </div>
+                 </div>
+
+                 <div className="mt-6 border-t border-white/10 pt-4">
+                    <h4 className="text-md font-semibold text-gray-300 mb-2">Atividade em Tempo Real</h4>
+                    {activityFeed.length > 0 ? (
+                      <ul className="space-y-4 max-h-48 overflow-y-auto pr-2">
+                        {activityFeed.map(activity => (
+                          <li key={activity.data.id} className="flex items-start space-x-3 text-sm animate-fade-in">
+                            <img src={activity.data.user.avatarUrl} className="w-8 h-8 rounded-full flex-shrink-0" alt={activity.data.user.name} />
+                            <div className="flex-1">
+                              <p className="text-gray-300">
+                                <span className="font-bold text-white">{activity.data.user.name}</span>
+                                {' comentou: "'}
+                                <span className="italic text-gray-400 line-clamp-1">{activity.data.text}</span>
+                                {'"'}
+                              </p>
+                            </div>
+                            <img src={activity.post.imageUrl} className="w-10 h-10 rounded-md object-cover flex-shrink-0" alt="post thumbnail" />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">Aguardando novas atividades...</p>
+                    )}
+                    <p className="text-xs text-gray-600 mt-4 text-center">Apenas comentários de outros usuários são exibidos. O rastreamento de curtidas e compartilhamentos não está disponível no momento.</p>
+                 </div>
+               </div>
             )}
           </div>
         </div>
@@ -269,7 +380,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       </div>
        <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeInUp {
           from { opacity: 0; transform: scale(0.95) translateY(20px); }
           to { opacity: 1; transform: scale(1) translateY(0); }

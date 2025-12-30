@@ -9,9 +9,10 @@ interface FeedProps {
   currentUser: UserProfile | null;
   onDeletePost: (postId: string, imageUrl: string) => void;
   onToggleLike: (postId: string) => void;
+  onToggleSave: (postId: string) => void;
 }
 
-export const Feed: React.FC<FeedProps> = ({ posts, onPostClick, currentUser, onDeletePost, onToggleLike }) => {
+export const Feed: React.FC<FeedProps> = ({ posts, onPostClick, currentUser, onDeletePost, onToggleLike, onToggleSave }) => {
   return (
     <>
       {posts.length === 0 ? (
@@ -29,6 +30,7 @@ export const Feed: React.FC<FeedProps> = ({ posts, onPostClick, currentUser, onD
               currentUser={currentUser}
               onDeletePost={onDeletePost}
               onToggleLike={onToggleLike}
+              onToggleSave={onToggleSave}
             />
           ))}
         </div>

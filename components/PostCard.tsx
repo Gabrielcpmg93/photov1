@@ -1,7 +1,7 @@
 
 import React from 'react';
 import type { Post, UserProfile } from '../types';
-import { IconHeart, IconMessageCircle, IconTrash } from './Icons';
+import { IconHeart, IconMessageCircle, IconTrash, IconBookmark, IconShare } from './Icons';
 
 interface PostCardProps {
   post: Post;
@@ -9,9 +9,10 @@ interface PostCardProps {
   currentUser: UserProfile | null;
   onDeletePost: (postId: string, imageUrl: string) => void;
   onToggleLike?: (postId: string) => void;
+  onToggleSave?: (postId: string) => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, onDeletePost, onToggleLike }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, onDeletePost, onToggleLike, onToggleSave }) => {
   const isOwner = currentUser && currentUser.id === post.user_id;
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -24,6 +25,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, 
     if (onToggleLike) {
       onToggleLike(post.id);
     }
+  };
+
+  const handleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleSave) {
+      onToggleSave(post.id);
+    }
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareText = encodeURIComponent(`Confira esta postagem de ${post.user.name}:\n\n"${post.caption}"\n\n${post.imageUrl}`);
+    window.open(`https://api.whatsapp.com/send?text=${shareText}`, '_blank');
   };
 
   return (
@@ -80,6 +94,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, 
             <IconMessageCircle className="w-6 h-6" />
             <span className="font-semibold text-sm">{post.comments}</span>
           </div>
+          <div className="flex-grow"></div>
+          <button onClick={handleShare} className="group/share focus:outline-none transition-transform transform hover:scale-105">
+            <IconShare className="w-6 h-6 text-white/80 group-hover/share:text-white" />
+          </button>
+          <button onClick={handleSave} className="group/save focus:outline-none transition-transform transform hover:scale-105">
+            <IconBookmark 
+              className={`w-6 h-6 transition-colors ${post.saved ? 'text-indigo-400' : 'text-white/80 group-hover/save:text-white'}`} 
+              fill={post.saved ? 'currentColor' : 'none'}
+            />
+          </button>
         </div>
       </div>
     </div>

@@ -27,14 +27,15 @@ export const formatPost = (post: any): Post => ({
     }
 });
 
-const formatComment = (comment: any): Comment => ({
+export const formatComment = (comment: any): Comment => ({
     id: comment.id,
     text: comment.text,
     created_at: comment.created_at,
     user: {
         name: comment.user_name,
         avatarUrl: comment.user_avatar_url
-    }
+    },
+    post_id: comment.post_id
 });
 
 const formatProfile = (profile: any): UserProfile => ({
@@ -238,6 +239,33 @@ export const updateUserProfile = async (userId: string, profileData: Pick<UserPr
         return null;
     }
     return formatProfile(data);
+};
+
+export const updateUserProfilePicture = async (userId: string, imageFile: File): Promise<string | null> => {
+    const newAvatarUrl = await uploadFile('avatars', imageFile);
+    if (!newAvatarUrl) return null;
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: newAvatarUrl })
+        .eq('id', userId)
+        .select('avatar_url')
+        .single();
+    
+    if (error) {
+        console.error('Error updating profile picture URL:', error.message);
+        return null;
+    }
+    
+    // Also update existing posts and comments with the new avatar url for consistency
+    await supabase.from('posts').update({ user_avatar_url: newAvatarUrl }).eq('user_id', userId);
+    // Note: comments table lacks user_id, so we update based on name, which is not ideal but the best we can do.
+    const { data: profile } = await supabase.from('profiles').select('name').eq('id', userId).single();
+    if(profile) {
+       await supabase.from('comments').update({ user_avatar_url: newAvatarUrl }).eq('user_name', profile.name);
+    }
+    
+    return data?.avatar_url ?? null;
 };
 
 export const addStory = async (userId: string, storyFile: File, user: User): Promise<Story | null> => {
