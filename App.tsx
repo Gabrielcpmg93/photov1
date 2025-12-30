@@ -46,6 +46,7 @@ function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
+  const [newlyAddedStory, setNewlyAddedStory] = useState<Story | null>(null);
 
 
   useEffect(() => {
@@ -97,6 +98,14 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [appSettings.darkMode]);
+
+  useEffect(() => {
+    if (newlyAddedStory) {
+        setIsLoading(false);
+        setIsStoryViewerOpen(true);
+        setNewlyAddedStory(null); // Reset after opening
+    }
+  }, [newlyAddedStory]);
 
   const openCreateModal = useCallback(() => setIsCreateModalOpen(true), []);
   const closeCreateModal = useCallback(() => setIsCreateModalOpen(false), []);
@@ -185,7 +194,7 @@ function App() {
     const newComment = await db.addComment(postId, commentText, userProfile);
     
     if (newComment && selectedPost) {
-      const updatedCommentList = [newComment, ...(selectedPost.commentList || [])];
+      const updatedCommentList = [...(selectedPost.commentList || []), newComment];
       setSelectedPost({ ...selectedPost, commentList: updatedCommentList, comments: updatedCommentList.length });
        setPosts(prevPosts => prevPosts.map(p => p.id === postId ? {...p, comments: p.comments + 1} : p));
 
@@ -248,6 +257,7 @@ function App() {
                 stories: [...existingStories, newStory as Story]
             };
         });
+        setNewlyAddedStory(newStory);
 
          if (appSettings.pushNotifications) {
             showNotification('Novo Story Adicionado!', {
@@ -255,9 +265,6 @@ function App() {
                 icon: newStory.imageUrl,
             });
         }
-        setIsLoading(false);
-        // We need to re-open the story viewer from here after upload
-        setIsStoryViewerOpen(true);
       } else {
         setIsLoading(false);
       }
@@ -339,8 +346,6 @@ function App() {
           onOpenSettings={openSettingsModal}
           onStartStoryCreation={handleStartStoryCreation}
           onOpenStoryViewer={openStoryViewer}
-          onSelectPost={handleSelectPostFromProfile}
-          onDeletePost={handleDeletePost}
       />
        <SettingsModal
         isOpen={isSettingsModalOpen}

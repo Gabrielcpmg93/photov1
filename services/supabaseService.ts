@@ -97,7 +97,7 @@ export const getCommentsForPost = async (postId: string) => {
         .from('comments')
         .select('*')
         .eq('post_id', postId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
     
     if (error) {
         console.error('Error fetching comments:', error.message);

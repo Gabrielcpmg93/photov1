@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Post } from '../types';
-import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconTrash } from './Icons';
+import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconCamera } from './Icons';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -12,11 +12,9 @@ interface ProfileModalProps {
   onOpenSettings: () => void;
   onStartStoryCreation: (storyFile: File) => void;
   onOpenStoryViewer: () => void;
-  onSelectPost: (post: Post) => void;
-  onDeletePost: (postId: string, imageUrl: string) => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, userPosts, onUpdateProfile, onOpenSettings, onStartStoryCreation, onOpenStoryViewer, onSelectPost, onDeletePost }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, userProfile, userPosts, onUpdateProfile, onOpenSettings, onStartStoryCreation, onOpenStoryViewer }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile?.name ?? '');
   const [bio, setBio] = useState(userProfile?.bio ?? '');
@@ -63,11 +61,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
       onStartStoryCreation(file);
     }
   };
-  
-  const handleDelete = (e: React.MouseEvent, post: Post) => {
-    e.stopPropagation();
-    onDeletePost(post.id, post.imageUrl);
-  };
 
   if (!isOpen) return null;
 
@@ -89,6 +82,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
   }
 
   const hasStory = !!userProfile.stories && userProfile.stories.length > 0;
+  const totalPosts = userPosts.length;
+  const totalLikes = userPosts.reduce((sum, post) => sum + post.likes, 0);
+  const totalComments = userPosts.reduce((sum, post) => sum + post.comments, 0);
 
   return (
     <div 
@@ -189,37 +185,36 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, use
         </div>
         
         <div className="flex-1 overflow-y-auto mt-6 p-6 pt-0">
-            <h3 className="text-lg font-semibold text-gray-200 border-t border-white/10 pt-4">Postagens</h3>
-            {userPosts.length > 0 ? (
-                <div className="grid grid-cols-3 gap-1 mt-4">
-                    {userPosts.map(post => (
-                    <div key={post.id} className="aspect-square relative group bg-gray-700 rounded-sm">
-                        <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover" />
-                        <div onClick={() => onSelectPost(post)} className="absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity text-white cursor-pointer group-hover:bg-black/60 opacity-0 group-hover:opacity-100">
-                            <div className="flex items-center space-x-4 text-sm">
-                                <div className="flex items-center space-x-1">
-                                    <IconHeart className="w-4 h-4" fill="white" />
-                                    <span>{post.likes}</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                    <IconMessageCircle className="w-4 h-4" />
-                                    <span>{post.comments}</span>
-                                </div>
-                            </div>
-                        </div>
-                         <button 
-                            onClick={(e) => handleDelete(e, post)}
-                            className="absolute top-1 right-1 z-10 p-1.5 bg-black/50 rounded-full text-white/80 hover:bg-red-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
-                            aria-label="Excluir postagem"
-                          >
-                            <IconTrash className="w-4 h-4" />
-                          </button>
-                    </div>
-                    ))}
-                </div>
-            ) : (
-                <p className="text-center text-gray-400 mt-4">Nenhuma postagem ainda.</p>
-            )}
+          <h3 className="text-lg font-semibold text-gray-200 border-t border-white/10 pt-4">Desempenho</h3>
+          <div className="mt-4 space-y-3">
+              <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                  <div className="p-3 bg-indigo-500/80 rounded-lg mr-4">
+                      <IconCamera className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                      <p className="text-xl font-bold">{totalPosts}</p>
+                      <p className="text-sm text-gray-400">Total de Postagens</p>
+                  </div>
+              </div>
+              <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                  <div className="p-3 bg-red-500/80 rounded-lg mr-4">
+                      <IconHeart className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                      <p className="text-xl font-bold">{totalLikes}</p>
+                      <p className="text-sm text-gray-400">Total de Curtidas</p>
+                  </div>
+              </div>
+              <div className="flex items-center p-3 bg-white/5 rounded-lg">
+                  <div className="p-3 bg-blue-500/80 rounded-lg mr-4">
+                      <IconMessageCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                      <p className="text-xl font-bold">{totalComments}</p>
+                      <p className="text-sm text-gray-400">Total de Comentários</p>
+                  </div>
+              </div>
+          </div>
         </div>
 
       </div>
