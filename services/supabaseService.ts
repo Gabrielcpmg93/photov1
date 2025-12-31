@@ -307,8 +307,8 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
 // Mock function for live sessions
 export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
     console.log("Fetching mock active live sessions...");
-    const host1 = { id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana', isHost: true, isSpeaker: true };
-    const host2 = { id: 'user_3', name: 'Carlos', avatarUrl: 'https://i.pravatar.cc/150?u=carlos', isHost: true, isSpeaker: true };
+    const host1 = { id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana', isHost: true, isSpeaker: true, isMuted: true };
+    const host2 = { id: 'user_3', name: 'Carlos', avatarUrl: 'https://i.pravatar.cc/150?u=carlos', isHost: true, isSpeaker: true, isMuted: true };
     
     return Promise.resolve([
         {
@@ -319,6 +319,7 @@ export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
             listeners: [],
             likes: 0,
             chat: [],
+            shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_1`,
         },
         {
             id: 'live_2',
@@ -328,6 +329,7 @@ export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
             listeners: [],
             likes: 0,
             chat: [],
+            shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_2`,
         },
     ]);
 };

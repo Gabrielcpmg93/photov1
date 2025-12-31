@@ -47,6 +47,7 @@ export interface NewPost {
 export interface AppSettings {
   darkMode: boolean;
   emailNotifications: boolean;
+
   pushNotifications: boolean;
   showLiveSessions: boolean;
 }
@@ -91,4 +92,5 @@ export interface LiveSession {
   requestsToSpeak?: LiveSessionParticipant[];
   likes?: number;
   chat?: ChatMessage[];
+  shareUrl?: string;
 }

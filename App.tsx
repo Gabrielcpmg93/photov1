@@ -71,6 +71,21 @@ function App() {
     loadInitialData();
   }, []);
 
+  // Handle joining live session from URL
+  useEffect(() => {
+    if (!isLoading && userProfile) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('live_session_id');
+        if (sessionId) {
+            const sessionToJoin = activeLiveSessions.find(s => s.id === sessionId);
+            if (sessionToJoin) {
+                handleJoinSession(sessionToJoin);
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+    }
+  }, [isLoading, activeLiveSessions, userProfile]);
 
   // Real-time subscriptions
   useEffect(() => {
@@ -90,7 +105,7 @@ function App() {
     // Live Sessions
     const liveSessionsChannel = supabase.channel('live-sessions-global')
         .on('broadcast', { event: 'session-started' }, ({ payload }) => {
-            setActiveLiveSessions(current => [payload.session, ...current]);
+            setActiveLiveSessions(current => [payload.session, ...current.filter(s => s.id !== payload.session.id)]);
         })
         .on('broadcast', { event: 'session-ended' }, ({ payload }) => {
             setActiveLiveSessions(current => current.filter(s => s.id !== payload.sessionId));
@@ -178,15 +193,17 @@ function App() {
   const handleStartLiveSession = useCallback(() => {
     if (!userProfile) return;
     closeCreateModal();
+    const newSessionId = `live_${userProfile.id}_${Date.now()}`;
     const newSession: LiveSession = {
-        id: `live_${userProfile.id}_${Date.now()}`,
+        id: newSessionId,
         title: `${userProfile.name}'s Live Room`,
-        host: { ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: false, isHost: true },
-        speakers: [{ ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: false, isHost: true }],
+        host: { ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: true, isHost: true },
+        speakers: [{ ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: true, isHost: true }],
         listeners: [],
         requestsToSpeak: [],
         likes: 0,
         chat: [],
+        shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=${newSessionId}`,
     };
     setCurrentLiveSession(newSession);
     setIsLiveAudioModalOpen(true);

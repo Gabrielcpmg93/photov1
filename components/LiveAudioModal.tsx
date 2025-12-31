@@ -15,24 +15,106 @@ interface LiveAudioModalProps {
   currentUser: UserProfile;
 }
 
+// Helper functions for audio processing
+const encode = (bytes: Uint8Array) => {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+};
+
+const decode = (base64: string) => {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+};
+
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+): Promise<AudioBuffer> {
+  // Assuming mono audio at 16000Hz, 16-bit PCM
+  const sampleRate = 16000;
+  const numChannels = 1;
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  const channelData = buffer.getChannelData(0);
+  for (let i = 0; i < frameCount; i++) {
+    channelData[i] = dataInt16[i] / 32768.0;
+  }
+  return buffer;
+}
+
+
 export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose, session: initialSession, currentUser }) => {
   const [session, setSession] = useState<LiveSession | null>(null);
   const [isListenersPanelOpen, setIsListenersPanelOpen] = useState(false);
   const [requestToSpeak, setRequestToSpeak] = useState<LiveSessionParticipant | null>(null);
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
-  const [isMuted, setIsMuted] = useState(true);
-
+  
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const audioRef = useRef<{
+    inputAudioContext?: AudioContext;
+    outputAudioContext?: AudioContext;
+    scriptProcessor?: ScriptProcessorNode;
+    mediaStreamSource?: MediaStreamAudioSourceNode;
+    nextStartTime: number;
+  }>({ nextStartTime: 0 });
+
 
   const handleClose = () => {
     if (initialSession) {
+      if (audioRef.current.inputAudioContext?.state !== 'closed') {
+         audioRef.current.inputAudioContext?.close();
+      }
+      if (audioRef.current.outputAudioContext?.state !== 'closed') {
+         audioRef.current.outputAudioContext?.close();
+      }
       onClose(initialSession.id);
     }
+  };
+
+  const setupAudioPlayback = () => {
+     if (!audioRef.current.outputAudioContext || audioRef.current.outputAudioContext.state === 'closed') {
+        audioRef.current.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        audioRef.current.nextStartTime = 0;
+     }
+  };
+
+  const playAudioChunk = async (base64Audio: string) => {
+      const { outputAudioContext } = audioRef.current;
+      if (!outputAudioContext) return;
+      try {
+        const audioData = decode(base64Audio);
+        const audioBuffer = await decodeAudioData(audioData, outputAudioContext);
+        
+        const source = outputAudioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(outputAudioContext.destination);
+
+        const now = outputAudioContext.currentTime;
+        if (now > audioRef.current.nextStartTime) {
+            audioRef.current.nextStartTime = now;
+        }
+
+        source.start(audioRef.current.nextStartTime);
+        audioRef.current.nextStartTime += audioBuffer.duration;
+      } catch (e) {
+          console.error("Error playing audio chunk:", e);
+      }
   };
 
   useEffect(() => {
     if (isOpen && initialSession) {
       setSession(initialSession);
+      setupAudioPlayback();
       
       const channel = supabase.channel(`live-session:${initialSession.id}`, {
           config: { broadcast: { self: false } }
@@ -81,10 +163,14 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
             case 'host-mic-toggled':
                 setSession(prev => {
                     if (!prev) return null;
-                    const host = prev.speakers.find(s => s.isHost);
-                    if (host) host.isMuted = payload.isMuted;
-                    return { ...prev };
+                    const speakers = prev.speakers.map(s => s.isHost ? {...s, isMuted: payload.isMuted} : s);
+                    return { ...prev, speakers };
                 });
+                break;
+            case 'audio-chunk':
+                if (currentUser.id !== initialSession.host.id) {
+                  playAudioChunk(payload.chunk);
+                }
                 break;
           }
       }).subscribe(status => {
@@ -113,7 +199,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     } else {
         setSession(null);
     }
-  }, [isOpen, initialSession, currentUser]);
+  }, [isOpen, initialSession, currentUser.id]);
 
   const handleRequestToSpeak = () => {
       if (channelRef.current) {
@@ -183,11 +269,71 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
     }
   };
   
-  const toggleMute = useCallback(() => {
+  const stopAudioStreaming = () => {
+      if (audioRef.current.scriptProcessor) {
+        audioRef.current.scriptProcessor.disconnect();
+        audioRef.current.scriptProcessor = undefined;
+      }
+      if (audioRef.current.mediaStreamSource) {
+        audioRef.current.mediaStreamSource.disconnect();
+        audioRef.current.mediaStreamSource = undefined;
+      }
+  };
+  
+  const setupAudioStreaming = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        const source = context.createMediaStreamSource(stream);
+        const processor = context.createScriptProcessor(1024, 1, 1);
+        
+        processor.onaudioprocess = (e) => {
+            const inputData = e.inputBuffer.getChannelData(0);
+            const l = inputData.length;
+            const int16 = new Int16Array(l);
+            for (let i = 0; i < l; i++) {
+                int16[i] = inputData[i] * 32768;
+            }
+            const base64 = encode(new Uint8Array(int16.buffer));
+            channelRef.current?.send({
+                type: 'broadcast',
+                event: 'user-event',
+                payload: { type: 'audio-chunk', chunk: base64 }
+            });
+        };
+
+        source.connect(processor);
+        processor.connect(context.destination);
+
+        audioRef.current.inputAudioContext = context;
+        audioRef.current.mediaStreamSource = source;
+        audioRef.current.scriptProcessor = processor;
+      } catch (err) {
+          console.error('Error accessing microphone:', err);
+          alert('Não foi possível acessar o microfone. Verifique suas permissões.');
+      }
+  };
+
+  const toggleMute = useCallback(async () => {
     if (!session || currentUser.id !== session.host.id) return;
-    const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
     
+    const host = session.speakers.find(s => s.isHost);
+    if(!host) return;
+
+    const newMutedState = !host.isMuted;
+    
+    if (!newMutedState && !audioRef.current.inputAudioContext) {
+        await setupAudioStreaming();
+    } else if (newMutedState) {
+        stopAudioStreaming();
+    }
+
+    setSession(prev => {
+        if (!prev) return null;
+        const speakers = prev.speakers.map(s => s.isHost ? {...s, isMuted: newMutedState} : s);
+        return { ...prev, speakers };
+    });
+
     if (channelRef.current) {
         channelRef.current.send({
             type: 'broadcast',
@@ -195,10 +341,11 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
             payload: { type: 'host-mic-toggled', isMuted: newMutedState }
         });
     }
-  }, [isMuted, session, currentUser.id]);
+  }, [session, currentUser.id]);
 
   const handleShare = () => {
-    const text = encodeURIComponent(`Junte-se a mim na sala de áudio de ${session?.host.name}: "${session?.title}"`);
+    if (!session?.shareUrl) return;
+    const text = encodeURIComponent(`Junte-se a mim na sala de áudio de ${session.host.name}: "${session.title}" ${session.shareUrl}`);
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
@@ -249,7 +396,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
                             <div className="relative">
                                 <img src={speaker.avatarUrl} alt={speaker.name} className="w-24 h-24 rounded-full border-4 border-indigo-500" />
                                 <div className="absolute -bottom-2 -right-2 bg-gray-700 p-2 rounded-full">
-                                    {(speaker.isHost ? hostMicState : speaker.isMuted) ? <IconMicOff className="w-5 h-5 text-red-400" /> : <IconMic className="w-5 h-5 text-white" />}
+                                    {(speaker.isMuted) ? <IconMicOff className="w-5 h-5 text-red-400" /> : <IconMic className="w-5 h-5 text-white" />}
                                 </div>
                             </div>
                             <p className="mt-2 font-semibold text-white truncate w-full">{speaker.name}</p>
@@ -265,8 +412,8 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         <footer className="p-4 bg-gray-800/50 border-t border-gray-700 z-10">
             {isSpeaker && (
                 <div className="flex items-center justify-center">
-                    <button onClick={isHost ? toggleMute : undefined} className={`p-4 rounded-full text-white transition-colors ${isHost ? 'hover:bg-gray-600' : 'cursor-default'} ${!isMuted ? 'bg-indigo-600' : 'bg-gray-700'}`}>
-                         {isMuted ? <IconMicOff className="w-6 h-6" /> : <IconMic className="w-6 h-6" />}
+                    <button onClick={isHost ? toggleMute : undefined} className={`p-4 rounded-full text-white transition-colors ${isHost ? 'hover:bg-gray-600' : 'cursor-default'} ${!hostMicState ? 'bg-indigo-600' : 'bg-gray-700'}`}>
+                         {hostMicState ? <IconMicOff className="w-6 h-6" /> : <IconMic className="w-6 h-6" />}
                     </button>
                 </div>
             )}
