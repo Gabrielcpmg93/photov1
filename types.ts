@@ -24,6 +24,8 @@ export interface Post {
   saved?: boolean;
   commentList?: Comment[];
   created_at?: string;
+  is_monetized?: boolean;
+  earnings?: number;
 }
 
 export interface Story {
@@ -37,6 +39,8 @@ export interface UserProfile extends User {
   id: string;
   bio: string;
   stories?: Story[];
+  is_monetized?: boolean;
+  adsense_publisher_id?: string;
 }
 
 export interface NewPost {

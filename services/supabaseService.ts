@@ -24,18 +24,9 @@ export const formatPost = (post: any): Post => ({
     user: {
         name: post.user_name,
         avatarUrl: post.user_avatar_url
-    }
-});
-
-export const formatComment = (comment: any): Comment => ({
-    id: comment.id,
-    text: comment.text,
-    created_at: comment.created_at,
-    user: {
-        name: comment.user_name,
-        avatarUrl: comment.user_avatar_url
     },
-    post_id: comment.post_id
+    is_monetized: post.is_monetized || false,
+    earnings: post.is_monetized ? (post.likes || 0) * 0.01 + (post.comments_count || 0) * 0.05 : 0,
 });
 
 const formatProfile = (profile: any): UserProfile => ({
@@ -44,6 +35,19 @@ const formatProfile = (profile: any): UserProfile => ({
     avatarUrl: profile.avatar_url,
     bio: profile.bio,
     stories: [],
+    is_monetized: profile.is_monetized || false,
+    adsense_publisher_id: profile.adsense_publisher_id,
+});
+
+const formatComment = (comment: any): Comment => ({
+    id: comment.id,
+    post_id: comment.post_id,
+    text: comment.text,
+    created_at: comment.created_at,
+    user: {
+        name: comment.user_name,
+        avatarUrl: comment.user_avatar_url,
+    },
 });
 
 export const getPosts = async () => {
@@ -77,7 +81,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
 
     const user: User = { name: data.name, avatarUrl: data.avatar_url };
 
-    const profile: UserProfile = {
+    return {
         id: data.id,
         name: data.name,
         avatarUrl: data.avatar_url,
@@ -87,35 +91,22 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
             imageUrl: story.image_url,
             createdAt: story.created_at,
             user: user,
-        }))
+        })),
+        is_monetized: data.is_monetized || false,
+        adsense_publisher_id: data.adsense_publisher_id,
     };
-
-    return profile;
 };
 
 export const getCommentsForPost = async (postId: string) => {
-    const { data, error } = await supabase
-        .from('comments')
-        .select('*')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-    
-    if (error) {
-        console.error('Error fetching comments:', error.message);
-        return [];
-    }
+    const { data, error } = await supabase.from('comments').select('*').eq('post_id', postId).order('created_at', { ascending: true });
+    if (error) { console.error('Error fetching comments:', error.message); return []; }
     return data.map(formatComment);
 };
 
 const uploadFile = async (bucket: string, file: File) => {
     const fileName = `${Date.now()}_${file.name}`;
     const { error: uploadError } = await supabase.storage.from(bucket).upload(fileName, file);
-
-    if (uploadError) {
-        console.error(`Error uploading file to ${bucket}:`, uploadError.message);
-        return null;
-    }
-
+    if (uploadError) { console.error(`Error uploading file to ${bucket}:`, uploadError.message); return null; }
     const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
     return data.publicUrl;
 };
@@ -125,211 +116,94 @@ const deleteFile = async (bucket: string, fileUrl: string) => {
         const fileName = fileUrl.split('/').pop();
         if (fileName) {
             const { error: storageError } = await supabase.storage.from(bucket).remove([fileName]);
-            if (storageError) {
-                console.error(`Error deleting image from ${bucket}:`, storageError.message);
-            }
+            if (storageError) { console.error(`Error deleting image from ${bucket}:`, storageError.message); }
         }
-    } catch (e) {
-        console.error('Error parsing image URL for deletion:', e);
-    }
+    } catch (e) { console.error('Error parsing image URL for deletion:', e); }
 };
-
 
 export const createPost = async (postData: NewPost, user: UserProfile) => {
     const imageUrl = await uploadFile('posts', postData.imageFile);
     if (!imageUrl) return null;
-
-    const { data, error } = await supabase
-        .from('posts')
-        .insert({
-            user_id: user.id,
-            caption: postData.caption,
-            image_url: imageUrl,
-            user_name: user.name,
-            user_avatar_url: user.avatarUrl,
-            likes: 0,
-            comments_count: 0,
-        })
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Error creating post:', error.message);
-        return null;
-    }
-
+    const { data, error } = await supabase.from('posts').insert({ user_id: user.id, caption: postData.caption, image_url: imageUrl, user_name: user.name, user_avatar_url: user.avatarUrl, likes: 0, comments_count: 0 }).select().single();
+    if (error) { console.error('Error creating post:', error.message); return null; }
     return formatPost(data);
 };
 
 export const deletePost = async (postId: string, imageUrl: string): Promise<boolean> => {
-    // 1. Delete associated comments
-    const { error: commentsError } = await supabase
-        .from('comments')
-        .delete()
-        .eq('post_id', postId);
-
-    if (commentsError) {
-        console.error('Error deleting comments:', commentsError.message);
-        return false;
-    }
-
-    // 2. Delete the post
-    const { error: postError } = await supabase
-        .from('posts')
-        .delete()
-        .eq('id', postId);
-
-    if (postError) {
-        console.error('Error deleting post:', postError.message);
-        return false;
-    }
-
-    // 3. Delete image from storage
+    await supabase.from('comments').delete().eq('post_id', postId);
+    const { error: postError } = await supabase.from('posts').delete().eq('id', postId);
+    if (postError) { console.error('Error deleting post:', postError.message); return false; }
     await deleteFile('posts', imageUrl);
-
     return true;
 };
 
-
 export const addComment = async (postId: string, text: string, user: User) => {
-    const { data, error } = await supabase
-        .from('comments')
-        .insert({
-            post_id: postId,
-            text,
-            user_name: user.name,
-            user_avatar_url: user.avatarUrl,
-        })
-        .select()
-        .single();
-    
-    if (error) {
-        console.error('Error adding comment:', error.message);
-        return null;
-    }
-    // Manually increment comments_count on the post
+    const { data, error } = await supabase.from('comments').insert({ post_id: postId, text, user_name: user.name, user_avatar_url: user.avatarUrl }).select().single();
+    if (error) { console.error('Error adding comment:', error.message); return null; }
     await supabase.rpc('increment_comments_count', { post_id_to_update: postId });
-
-
     return formatComment(data);
 };
 
 export const toggleLike = async (postId: string, newLikesCount: number) => {
-    const { data, error } = await supabase
-        .from('posts')
-        .update({ likes: newLikesCount })
-        .eq('id', postId)
-        .select()
-        .single();
-    
-    if(error) {
-        console.error('Error toggling like:', error.message);
-        return null;
-    }
+    const { data, error } = await supabase.from('posts').update({ likes: newLikesCount }).eq('id', postId).select().single();
+    if(error) { console.error('Error toggling like:', error.message); return null; }
     return formatPost(data);
 };
 
 export const updateUserProfile = async (userId: string, profileData: Pick<UserProfile, 'name' | 'bio'>) => {
-     const { data, error } = await supabase
-        .from('profiles')
-        .update({ name: profileData.name, bio: profileData.bio })
-        .eq('id', userId)
-        .select()
-        .single();
-    
-    if(error) {
-        console.error('Error updating profile:', error.message);
-        return null;
-    }
+     const { data, error } = await supabase.from('profiles').update({ name: profileData.name, bio: profileData.bio }).eq('id', userId).select().single();
+    if(error) { console.error('Error updating profile:', error.message); return null; }
     return formatProfile(data);
 };
 
 export const updateUserProfilePicture = async (userId: string, imageFile: File, oldAvatarUrl: string): Promise<string | null> => {
     const newAvatarUrl = await uploadFile('avatars', imageFile);
     if (!newAvatarUrl) return null;
-
-    const { data, error } = await supabase
-        .from('profiles')
-        .update({ avatar_url: newAvatarUrl })
-        .eq('id', userId)
-        .select('avatar_url')
-        .single();
-    
-    if (error) {
-        console.error('Error updating profile picture URL:', error.message);
-        // If DB update fails, delete the newly uploaded file to prevent orphans
-        await deleteFile('avatars', newAvatarUrl);
-        return null;
-    }
-    
-    // Delete old avatar from storage
-    if (oldAvatarUrl && !oldAvatarUrl.includes('default-avatar.png')) {
-        await deleteFile('avatars', oldAvatarUrl);
-    }
-    
-    // Also update existing posts and comments with the new avatar url for consistency
+    const { data, error } = await supabase.from('profiles').update({ avatar_url: newAvatarUrl }).eq('id', userId).select('avatar_url').single();
+    if (error) { console.error('Error updating profile picture URL:', error.message); await deleteFile('avatars', newAvatarUrl); return null; }
+    if (oldAvatarUrl && !oldAvatarUrl.includes('default-avatar.png')) { await deleteFile('avatars', oldAvatarUrl); }
     await supabase.from('posts').update({ user_avatar_url: newAvatarUrl }).eq('user_id', userId);
-    // Note: comments table lacks user_id, so we update based on name, which is not ideal but the best we can do.
     const { data: profile } = await supabase.from('profiles').select('name').eq('id', userId).single();
-    if(profile) {
-       await supabase.from('comments').update({ user_avatar_url: newAvatarUrl }).eq('user_name', profile.name);
-    }
-    
+    if(profile) { await supabase.from('comments').update({ user_avatar_url: newAvatarUrl }).eq('user_name', profile.name); }
     return data?.avatar_url ?? null;
 };
 
 export const addStory = async (userId: string, storyFile: File, user: User): Promise<Story | null> => {
     const storyUrl = await uploadFile('stories', storyFile);
     if (!storyUrl) return null;
+    const { data, error } = await supabase.from('stories').insert({ user_id: userId, image_url: storyUrl }).select(`*`).single();
+    if(error) { console.error('Error adding story:', error.message); return null; }
+    return { id: data.id, imageUrl: data.image_url, createdAt: data.created_at, user: user };
+};
 
-    const { data, error } = await supabase
-        .from('stories')
-        .insert({
-            user_id: userId,
-            image_url: storyUrl,
-        })
-        .select(`*`)
-        .single();
-    
-    if(error) {
-        console.error('Error adding story:', error.message);
-        return null;
-    }
-    
-    return {
-        id: data.id,
-        imageUrl: data.image_url,
-        createdAt: data.created_at,
-        user: user,
-    };
+// Saved Posts (using localStorage for simulation)
+export const getSavedPostIds = (): string[] => JSON.parse(localStorage.getItem('saved_posts') || '[]');
+export const savePost = (postId: string) => localStorage.setItem('saved_posts', JSON.stringify([...getSavedPostIds(), postId]));
+export const unsavePost = (postId: string) => localStorage.setItem('saved_posts', JSON.stringify(getSavedPostIds().filter(id => id !== postId)));
+
+// Monetization Functions
+export const updateMonetizationStatus = async (userId: string, isMonetized: boolean): Promise<boolean> => {
+    const { error } = await supabase.from('profiles').update({ is_monetized: isMonetized }).eq('id', userId);
+    if (error) { console.error('Error updating monetization status:', error.message); return false; }
+    return true;
+};
+export const updateAdsenseId = async (userId: string, adsenseId: string): Promise<boolean> => {
+    const { error } = await supabase.from('profiles').update({ adsense_publisher_id: adsenseId }).eq('id', userId);
+    if (error) { console.error('Error updating AdSense ID:', error.message); return false; }
+    return true;
+};
+export const togglePostMonetization = async (postId: string, isMonetized: boolean): Promise<boolean> => {
+    const { error } = await supabase.from('posts').update({ is_monetized: isMonetized }).eq('id', postId);
+    if (error) { console.error('Error toggling post monetization:', error.message); return false; }
+    return true;
 };
 
 // Mock function for live sessions
 export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
-    console.log("Fetching mock active live sessions...");
     const host1 = { id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana', isHost: true, isSpeaker: true, isMuted: true };
     const host2 = { id: 'user_3', name: 'Carlos', avatarUrl: 'https://i.pravatar.cc/150?u=carlos', isHost: true, isSpeaker: true, isMuted: true };
-    
     return Promise.resolve([
-        {
-            id: 'live_1',
-            title: 'Discussão sobre IA e Criatividade',
-            host: host1,
-            speakers: [host1],
-            listeners: [],
-            likes: 0,
-            chat: [],
-            shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_1`,
-        },
-        {
-            id: 'live_2',
-            title: 'Música ao vivo e bate-papo',
-            host: host2,
-            speakers: [host2],
-            listeners: [],
-            likes: 0,
-            chat: [],
-            shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_2`,
-        },
+        { id: 'live_1', title: 'Discussão sobre IA e Criatividade', host: host1, speakers: [host1], listeners: [], likes: 0, chat: [], shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_1` },
+        { id: 'live_2', title: 'Música ao vivo e bate-papo', host: host2, speakers: [host2], listeners: [], likes: 0, chat: [], shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_2` },
     ]);
 };

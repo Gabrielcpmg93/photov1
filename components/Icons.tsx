@@ -199,3 +199,17 @@ export const IconSmile: React.FC<IconProps> = (props) => (
         <line x1="15" y1="9" x2="15.01" y2="9" />
     </svg>
 );
+
+export const IconDollarSign: React.FC<IconProps> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <line x1="12" y1="1" x2="12" y2="23" />
+    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+  </svg>
+);
+
+export const IconTrendingUp: React.FC<IconProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+        <polyline points="17 6 23 6 23 12" />
+    </svg>
+);

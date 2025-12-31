@@ -1,10 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { UserProfile, Post, Comment as CommentType } from '../types';
-import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconCamera, IconBookmark } from './Icons';
+import type { UserProfile, Post } from '../types';
+import { IconX, IconSettings, IconCamera, IconBookmark, IconDollarSign, IconTrendingUp } from './Icons';
 import { ProfilePostThumbnail } from './ProfilePostThumbnail';
-import * as db from '../services/supabaseService';
-import { supabase } from '../services/supabaseService';
+import { PerformanceDashboard } from './PerformanceDashboard';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -19,408 +18,117 @@ interface ProfileModalProps {
   onOpenStoryViewer: () => void;
   onSelectPost: (post: Post) => void;
   onDeletePost: (postId: string, imageUrl: string) => void;
+  onUpdateMonetizationStatus: (isMonetized: boolean) => void;
+  onTogglePostMonetization: (postId: string, isMonetized: boolean) => void;
+  onUpdateAdsenseId: (adsenseId: string) => void;
 }
 
-type ActiveTab = 'posts' | 'saved' | 'performance';
-type Activity = { type: 'comment', data: CommentType, post: Post };
+type ActiveTab = 'posts' | 'saved' | 'performance' | 'monetization';
+
+const Toggle: React.FC<{ enabled: boolean; onChange: (enabled: boolean) => void }> = ({ enabled, onChange }) => (
+    <button onClick={() => onChange(!enabled)} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500 ${enabled ? 'bg-indigo-600' : 'bg-gray-600'}`}>
+        <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+    </button>
+);
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ 
-    isOpen, 
-    onClose, 
-    userProfile, 
-    userPosts,
-    savedPosts,
-    onUpdateProfile,
-    onUpdateProfilePicture,
-    onOpenSettings, 
-    onStartStoryCreation, 
-    onOpenStoryViewer,
-    onSelectPost,
-    onDeletePost
+    isOpen, onClose, userProfile, userPosts, savedPosts,
+    onUpdateProfile, onUpdateProfilePicture, onOpenSettings, 
+    onSelectPost, onDeletePost,
+    onUpdateMonetizationStatus, onTogglePostMonetization, onUpdateAdsenseId
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile?.name ?? '');
   const [bio, setBio] = useState(userProfile?.bio ?? '');
+  const [adsenseId, setAdsenseId] = useState(userProfile?.adsense_publisher_id ?? '');
   const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
   const [isUploading, setIsUploading] = useState(false);
-  const [activityFeed, setActivityFeed] = useState<Activity[]>([]);
 
   const modalRef = useRef<HTMLDivElement>(null);
-  const storyInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (userProfile) {
-      setName(userProfile.name);
-      setBio(userProfile.bio);
-    }
-  }, [userProfile]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setActiveTab('posts'); // Reset to default tab on open
-      setActivityFeed([]); // Clear activity on open
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-      setIsEditing(false);
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+  useEffect(() => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); setAdsenseId(userProfile.adsense_publisher_id ?? ''); } }, [userProfile]);
+  useEffect(() => { if (isOpen) { setActiveTab('posts'); document.body.style.overflow = 'hidden'; } else { document.body.style.overflow = 'unset'; setIsEditing(false); } return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
   
-  // Real-time activity feed effect
-  useEffect(() => {
-    if (activeTab !== 'performance' || !isOpen || !userProfile) {
-      return;
-    }
-
-    const userPostIds = userPosts.map(p => p.id);
-    if (userPostIds.length === 0) return;
-
-    const channel = supabase.channel('public:comments-profile')
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'comments',
-          filter: `post_id=in.(${userPostIds.join(',')})` 
-        },
-        (payload) => {
-          // Filter out own comments
-          if (payload.new.user_name === userProfile.name) {
-            return;
-          }
-          const newComment = db.formatComment(payload.new);
-          const post = userPosts.find(p => p.id === newComment.post_id);
-          if (post) {
-            setActivityFeed(prevFeed => [{
-              type: 'comment',
-              data: newComment,
-              post: post,
-            }, ...prevFeed].slice(0, 20)); // Keep feed to a reasonable size
-          }
-        }
-      ).subscribe();
-    
-    // Cleanup
-    return () => {
-      supabase.removeChannel(channel);
-    };
-
-  }, [activeTab, isOpen, userPosts, userProfile]);
-
-  const handleSave = () => {
-    onUpdateProfile({ name, bio });
-    setIsEditing(false);
-  };
-  
-  const handleCancel = () => {
-    if (userProfile) {
-      setName(userProfile.name);
-      setBio(userProfile.bio);
-    }
-    setIsEditing(false);
-  };
-  
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      onClose();
-    }
-  };
-
-  const handleStoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      onStartStoryCreation(file);
-    }
-  };
-
+  const handleSave = () => { onUpdateProfile({ name, bio }); setIsEditing(false); };
+  const handleCancel = () => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); } setIsEditing(false); };
+  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => { if (modalRef.current && !modalRef.current.contains(e.target as Node)) { onClose(); } };
   const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setIsUploading(true);
-      await onUpdateProfilePicture(file);
-      setIsUploading(false);
-    }
+    if (file) { setIsUploading(true); await onUpdateProfilePicture(file); setIsUploading(false); }
   };
+  const handleAdsenseSave = () => { onUpdateAdsenseId(adsenseId); alert('Informações do AdSense salvas!'); };
 
-  if (!isOpen) return null;
+  if (!isOpen || !userProfile) return null;
 
-  if (!userProfile) {
-    return (
-        <div 
-            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 transition-opacity duration-300 animate-fade-in"
-            onClick={handleOverlayClick}
-        >
-            <div 
-                ref={modalRef}
-                className="bg-gray-800/50 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-8 text-center flex flex-col items-center"
-            >
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mb-4"></div>
-                <p className="text-lg font-semibold text-gray-300">Carregando perfil...</p>
-            </div>
-        </div>
-    );
-  }
-
-  const hasStory = !!userProfile.stories && userProfile.stories.length > 0;
-  const totalPosts = userPosts.length;
-  const totalLikes = userPosts.reduce((sum, post) => sum + post.likes, 0);
-  const totalComments = userPosts.reduce((sum, post) => sum + post.comments, 0);
+  const totalEarnings = userPosts.reduce((sum, post) => sum + (post.earnings || 0), 0);
+  const monetizedPostsCount = userPosts.filter(p => p.is_monetized).length;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 transition-opacity duration-300 animate-fade-in"
-      onClick={handleOverlayClick}
-    >
-      <div 
-        ref={modalRef}
-        className="bg-gray-800/50 backdrop-blur-2xl border border-white/10 text-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col transform transition-all duration-300 animate-fade-in-up"
-      >
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={handleOverlayClick}>
+      <div ref={modalRef} className="bg-gray-800/50 backdrop-blur-2xl border border-white/10 text-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col animate-fade-in-up">
         <div className="p-6 pb-0">
           <div className="flex justify-between items-center mb-6">
              <h2 className="text-2xl font-bold">Seu Perfil</h2>
              <div className="flex items-center space-x-2">
-                <button onClick={onOpenSettings} className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
-                    <IconSettings className="w-6 h-6" />
-                </button>
-                <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10">
-                    <IconX className="w-6 h-6" />
-                </button>
+                <button onClick={onOpenSettings} className="p-2 rounded-full hover:bg-white/10"><IconSettings className="w-6 h-6" /></button>
+                <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10"><IconX className="w-6 h-6" /></button>
              </div>
           </div>
-          
           <div className="flex flex-col items-center text-center">
             <div className="relative mb-4">
-              <button
-                  onClick={hasStory ? onOpenStoryViewer : () => storyInputRef.current?.click()}
-                  className={`p-1 rounded-full ${hasStory ? 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500' : 'border-2 border-dashed border-gray-500'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-purple-500 transition-all`}
-                  disabled={isEditing}
-              >
-                  <div className="p-1 bg-gray-800 rounded-full">
-                      <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full" />
-                  </div>
-              </button>
-              {isEditing ? (
-                  <>
-                    <button
-                        onClick={() => avatarInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-2 border-4 border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 transform hover:scale-110 transition-transform"
-                        aria-label="Mudar foto do perfil"
-                    >
-                        {isUploading ? <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div> : <IconCamera className="w-5 h-5" />}
-                    </button>
-                    <input
-                        type="file"
-                        ref={avatarInputRef}
-                        onChange={handleAvatarFileChange}
-                        accept="image/*"
-                        className="hidden"
-                    />
-                  </>
-              ) : (
-                <>
-                  <button
-                      onClick={() => storyInputRef.current?.click()}
-                      className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-1 border-2 border-gray-800 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 transform hover:scale-110 transition-transform"
-                      aria-label="Adicionar story"
-                  >
-                      <IconPlusCircle className="w-6 h-6" strokeWidth={2} />
-                  </button>
-                  <input
-                      type="file"
-                      ref={storyInputRef}
-                      onChange={handleStoryFileChange}
-                      accept="image/*"
-                      className="hidden"
-                  />
-                </>
-              )}
+               <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full" />
+               {isEditing && ( <> <button onClick={() => avatarInputRef.current?.click()} disabled={isUploading} className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-2 border-4 border-gray-800">{isUploading ? <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div> : <IconCamera className="w-5 h-5" />}</button> <input type="file" ref={avatarInputRef} onChange={handleAvatarFileChange} accept="image/*" className="hidden" /> </>)}
             </div>
-
-            {isEditing ? (
-              <input 
-                type="text" 
-                value={name} 
-                onChange={(e) => setName(e.target.value)} 
-                className="w-full text-center text-2xl font-bold bg-white/5 border border-white/10 text-white rounded-lg p-2 mb-2 focus:ring-2 focus:ring-indigo-500"
-              />
-            ) : (
-              <h3 className="text-2xl font-bold">{userProfile.name}</h3>
-            )}
-            
-            {isEditing ? (
-              <textarea 
-                value={bio} 
-                onChange={(e) => setBio(e.target.value)} 
-                className="w-full text-center text-gray-300 bg-white/5 border border-white/10 rounded-lg p-2 mt-2 focus:ring-2 focus:ring-indigo-500 placeholder-gray-400"
-                rows={3}
-              />
-            ) : (
-              <p className="text-gray-400 mt-2">{userProfile.bio}</p>
-            )}
-
+            {isEditing ? <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full text-center text-2xl font-bold bg-white/5 border rounded-lg p-2 mb-2" /> : <h3 className="text-2xl font-bold">{userProfile.name}</h3>}
+            {isEditing ? <textarea value={bio} onChange={(e) => setBio(e.target.value)} className="w-full text-center text-gray-300 bg-white/5 border rounded-lg p-2 mt-2" rows={3} /> : <p className="text-gray-400 mt-2">{userProfile.bio}</p>}
             <div className="mt-6 w-full space-y-2 sm:space-y-0 sm:flex sm:space-x-4">
-              {isEditing ? (
-                <>
-                  <button 
-                    onClick={handleSave} 
-                    className="w-full sm:w-1/2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold transition-colors"
-                  >
-                    Salvar
-                  </button>
-                  <button 
-                    onClick={handleCancel} 
-                    className="w-full sm:w-1/2 px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-semibold transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                </>
-              ) : (
-                <button 
-                  onClick={() => setIsEditing(true)} 
-                  className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-semibold transition-colors"
-                >
-                  Editar Perfil
-                </button>
-              )}
+              {isEditing ? ( <> <button onClick={handleSave} className="w-full sm:w-1/2 px-4 py-2 bg-indigo-600 rounded-lg font-semibold">Salvar</button> <button onClick={handleCancel} className="w-full sm:w-1/2 px-4 py-2 bg-gray-600 rounded-lg font-semibold">Cancelar</button> </> ) : <button onClick={() => setIsEditing(true)} className="w-full px-4 py-2 bg-white/10 rounded-lg font-semibold">Editar Perfil</button>}
             </div>
           </div>
         </div>
         
         <div className="flex-1 overflow-y-auto mt-6">
-          <div className="border-b border-white/10 px-6">
-              <nav className="flex space-x-4">
-                  <button 
-                      onClick={() => setActiveTab('posts')}
-                      className={`px-3 py-2 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'posts' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
-                  >
-                      Postagens
-                  </button>
-                   <button 
-                      onClick={() => setActiveTab('saved')}
-                      className={`px-3 py-2 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'saved' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
-                  >
-                      Salvos
-                  </button>
-                  <button 
-                      onClick={() => setActiveTab('performance')}
-                      className={`px-3 py-2 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'performance' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
-                  >
-                      Desempenho
-                  </button>
-              </nav>
-          </div>
+          <div className="border-b border-white/10 px-6"><nav className="flex space-x-2 sm:space-x-4 overflow-x-auto text-sm">
+            {[{key: 'posts', icon: IconCamera}, {key: 'saved', icon: IconBookmark}, {key: 'performance', icon: IconTrendingUp}, {key: 'monetization', icon: IconDollarSign}].map(tab => (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key as ActiveTab)} className={`flex items-center space-x-2 px-3 py-2 font-semibold rounded-t-lg capitalize whitespace-nowrap ${activeTab === tab.key ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}>
+                <tab.icon className="w-5 h-5" /> <span>{tab.key}</span>
+              </button>
+            ))}
+          </nav></div>
           <div className="p-6">
-            {activeTab === 'posts' && (
-              <div className="grid grid-cols-3 gap-1">
-                {userPosts.map(post => (
-                  <ProfilePostThumbnail 
-                    key={post.id} 
-                    post={post} 
-                    onClick={() => onSelectPost(post)} 
-                    onDelete={onDeletePost}
-                  />
-                ))}
-              </div>
-            )}
-            {activeTab === 'saved' && (
-               <div className="grid grid-cols-3 gap-1">
-                {savedPosts.length > 0 ? (
-                  savedPosts.map(post => (
-                    <ProfilePostThumbnail 
-                      key={post.id} 
-                      post={post} 
-                      onClick={() => onSelectPost(post)} 
-                      onDelete={onDeletePost}
-                      showDeleteButton={false}
-                    />
-                  ))
-                ) : (
-                  <div className="col-span-3 text-center text-gray-500 py-10 flex flex-col items-center">
-                    <IconBookmark className="w-12 h-12 mb-2" />
-                    <p>Nenhuma postagem salva ainda.</p>
-                    <p className="text-xs mt-1">Clique no ícone de marcador nas postagens para salvá-las aqui.</p>
+            {activeTab === 'posts' && <div className="grid grid-cols-3 gap-1">{userPosts.map(post => <ProfilePostThumbnail key={post.id} post={post} onClick={() => onSelectPost(post)} onDelete={onDeletePost} />)}</div>}
+            {activeTab === 'saved' && <div className="grid grid-cols-3 gap-1">{savedPosts.map(post => <ProfilePostThumbnail key={post.id} post={post} onClick={() => onSelectPost(post)} onDelete={onDeletePost} showDeleteButton={false}/>)}</div>}
+            {activeTab === 'performance' && <PerformanceDashboard posts={userPosts} />}
+            {activeTab === 'monetization' && (<div>
+              {!userProfile.is_monetized ? (
+                <div className="text-center p-6 bg-white/5 rounded-lg">
+                  <IconDollarSign className="w-16 h-16 mx-auto text-green-400 mb-4" />
+                  <h3 className="text-2xl font-bold text-white mb-2">Monetize seu Talento</h3>
+                  <p className="text-gray-400 mb-6">Ganhe dinheiro com suas fotos. Junte-se ao nosso programa de parceiros para começar.</p>
+                  <button onClick={() => onUpdateMonetizationStatus(true)} className="px-8 py-3 bg-gradient-to-br from-green-500 to-teal-600 text-white font-bold rounded-lg transition-transform transform hover:scale-105">Tornar-se Parceiro</button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div><p className="text-gray-400 text-sm">Ganhos Totais (Simulado)</p><p className="text-4xl font-bold text-green-400">R$ {totalEarnings.toFixed(2).replace('.', ',')}</p></div>
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div><p className="font-bold text-lg">{monetizedPostsCount}</p><p className="text-xs text-gray-400">Fotos Monetizadas</p></div>
+                    <div><p className="font-bold text-lg">15/07</p><p className="text-xs text-gray-400">Próximo Pagamento</p></div>
                   </div>
-                )}
-              </div>
-            )}
-            {activeTab === 'performance' && (
-               <div>
-                 <div className="space-y-3">
-                    <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                        <div className="p-3 bg-indigo-500/80 rounded-lg mr-4">
-                            <IconCamera className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-xl font-bold">{totalPosts}</p>
-                            <p className="text-sm text-gray-400">Total de Postagens</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                        <div className="p-3 bg-red-500/80 rounded-lg mr-4">
-                            <IconHeart className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-xl font-bold">{totalLikes}</p>
-                            <p className="text-sm text-gray-400">Total de Curtidas</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center p-3 bg-white/5 rounded-lg">
-                        <div className="p-3 bg-blue-500/80 rounded-lg mr-4">
-                            <IconMessageCircle className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-xl font-bold">{totalComments}</p>
-                            <p className="text-sm text-gray-400">Total de Comentários</p>
-                        </div>
-                    </div>
-                 </div>
-
-                 <div className="mt-6 border-t border-white/10 pt-4">
-                    <h4 className="text-md font-semibold text-gray-300 mb-2">Atividade em Tempo Real</h4>
-                    {activityFeed.length > 0 ? (
-                      <ul className="space-y-4 max-h-48 overflow-y-auto pr-2">
-                        {activityFeed.map(activity => (
-                          <li key={activity.data.id} className="flex items-start space-x-3 text-sm animate-fade-in">
-                            <img src={activity.data.user.avatarUrl} className="w-8 h-8 rounded-full flex-shrink-0" alt={activity.data.user.name} />
-                            <div className="flex-1">
-                              <p className="text-gray-300">
-                                <span className="font-bold text-white">{activity.data.user.name}</span>
-                                {' comentou: "'}
-                                <span className="italic text-gray-400 line-clamp-1">{activity.data.text}</span>
-                                {'"'}
-                              </p>
-                            </div>
-                            <img src={activity.post.imageUrl} className="w-10 h-10 rounded-md object-cover flex-shrink-0" alt="post thumbnail" />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-gray-500 text-center py-4">Aguardando novas atividades...</p>
-                    )}
-                    <p className="text-xs text-gray-600 mt-4 text-center">Apenas comentários de outros usuários são exibidos. O rastreamento de curtidas e compartilhamentos não está disponível no momento.</p>
-                 </div>
-               </div>
-            )}
+                  <div>
+                    <h4 className="text-lg font-semibold mb-3">Gerenciar Monetização de Posts</h4>
+                    <ul className="space-y-3 max-h-40 overflow-y-auto pr-2">{userPosts.map(post => (<li key={post.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg"><div className="flex items-center space-x-3"><img src={post.imageUrl} alt="" className="w-12 h-12 object-cover rounded-md" /><div><p className="text-sm font-semibold truncate max-w-xs">{post.caption}</p><p className="text-xs text-green-400">Ganhos: R$ {(post.earnings || 0).toFixed(2).replace('.', ',')}</p></div></div><Toggle enabled={post.is_monetized || false} onChange={(val) => onTogglePostMonetization(post.id, val)} /></li>))}</ul>
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold mb-3">Integração Google AdSense</h4>
+                    <div className="space-y-2"><label htmlFor="adsenseId" className="text-sm font-medium text-gray-300">Seu ID de Editor (pub-xxxxxxxxxxxxxxxx)</label><input id="adsenseId" type="text" value={adsenseId} onChange={(e) => setAdsenseId(e.target.value)} placeholder="pub-xxxxxxxxxxxxxxxx" className="w-full p-2 bg-white/5 border border-white/10 rounded-lg" /><button onClick={handleAdsenseSave} className="w-full px-4 py-2 bg-indigo-600 rounded-lg font-semibold">Salvar ID</button></div>
+                  </div>
+                </div>
+              )}
+            </div>)}
           </div>
         </div>
-
       </div>
-       <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: scale(0.95) translateY(20px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.3s ease-out forwards;
-        }
-      `}</style>
     </div>
   );
 };
