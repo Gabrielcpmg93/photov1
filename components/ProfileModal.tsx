@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Post } from '../types';
+import * as db from '../services/supabaseService';
 import { IconX, IconSettings, IconCamera, IconBookmark, IconDollarSign, IconTrendingUp } from './Icons';
 import { ProfilePostThumbnail } from './ProfilePostThumbnail';
 import { PerformanceDashboard } from './PerformanceDashboard';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -43,6 +45,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [startioId, setStartioId] = useState(userProfile?.startio_app_id ?? '');
   const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
   const [isUploading, setIsUploading] = useState(false);
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +54,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   useEffect(() => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); setStartioId(userProfile.startio_app_id ?? ''); } }, [userProfile]);
   useEffect(() => { if (isOpen) { setActiveTab('posts'); document.body.style.overflow = 'hidden'; } else { document.body.style.overflow = 'unset'; setIsEditing(false); } return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
   
+  useEffect(() => {
+    if (activeTab === 'monetization' && userProfile?.is_monetized) {
+      const fetchEarnings = async () => {
+        setIsLoadingEarnings(true);
+        const earnings = await db.getSimulatedStartioEarnings();
+        setTotalEarnings(earnings);
+        setIsLoadingEarnings(false);
+      };
+      fetchEarnings();
+    }
+  }, [activeTab, userProfile?.is_monetized, userPosts]);
+
   const handleSave = () => { onUpdateProfile({ name, bio }); setIsEditing(false); };
   const handleCancel = () => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); } setIsEditing(false); };
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => { if (modalRef.current && !modalRef.current.contains(e.target as Node)) { onClose(); } };
@@ -61,7 +77,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   if (!isOpen || !userProfile) return null;
 
-  const totalEarnings = userPosts.reduce((sum, post) => sum + (post.earnings || 0), 0);
   const monetizedPostsCount = userPosts.filter(p => p.is_monetized).length;
 
   return (
@@ -110,7 +125,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div><p className="text-gray-400 text-sm">Ganhos Totais (Simulado)</p><p className="text-4xl font-bold text-green-400">R$ {totalEarnings.toFixed(2).replace('.', ',')}</p></div>
+                  <div>
+                    <p className="text-gray-400 text-sm">Ganhos Totais (Start.io)</p>
+                    <div className="text-4xl font-bold text-green-400 h-12 flex items-center">
+                      {isLoadingEarnings ? <LoadingSpinner /> : `R$ ${totalEarnings.toFixed(2).replace('.', ',')}`}
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-4 text-center">
                     <div><p className="font-bold text-lg">{monetizedPostsCount}</p><p className="text-xs text-gray-400">Fotos Monetizadas</p></div>
                     <div><p className="font-bold text-lg">15/07</p><p className="text-xs text-gray-400">Próximo Pagamento</p></div>
