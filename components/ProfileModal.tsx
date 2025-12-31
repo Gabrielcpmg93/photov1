@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Post } from '../types';
-import * as db from '../services/supabaseService';
+import * as startioApi from '../services/startioApiClient';
 import { IconX, IconSettings, IconCamera, IconBookmark, IconDollarSign, IconTrendingUp } from './Icons';
 import { ProfilePostThumbnail } from './ProfilePostThumbnail';
 import { PerformanceDashboard } from './PerformanceDashboard';
@@ -47,6 +47,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
+  const [earningsError, setEarningsError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -54,17 +55,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   useEffect(() => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); setStartioId(userProfile.startio_app_id ?? ''); } }, [userProfile]);
   useEffect(() => { if (isOpen) { setActiveTab('posts'); document.body.style.overflow = 'hidden'; } else { document.body.style.overflow = 'unset'; setIsEditing(false); } return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
   
+  const monetizedPostsCount = userPosts.filter(p => p.is_monetized).length;
+
   useEffect(() => {
     if (activeTab === 'monetization' && userProfile?.is_monetized) {
       const fetchEarnings = async () => {
         setIsLoadingEarnings(true);
-        const earnings = await db.getSimulatedStartioEarnings();
-        setTotalEarnings(earnings);
+        setEarningsError(null);
+        const response = await startioApi.getStartioEarnings();
+        if (response.success) {
+          setTotalEarnings(response.earnings ?? 0);
+        } else {
+          setEarningsError(response.error ?? 'Ocorreu um erro desconhecido.');
+          setTotalEarnings(0);
+        }
         setIsLoadingEarnings(false);
       };
       fetchEarnings();
     }
-  }, [activeTab, userProfile?.is_monetized, userPosts]);
+  }, [activeTab, userProfile?.is_monetized, userProfile?.startio_app_id, monetizedPostsCount]);
 
   const handleSave = () => { onUpdateProfile({ name, bio }); setIsEditing(false); };
   const handleCancel = () => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); } setIsEditing(false); };
@@ -73,11 +82,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const file = event.target.files?.[0];
     if (file) { setIsUploading(true); await onUpdateProfilePicture(file); setIsUploading(false); }
   };
-  const handleStartioSave = () => { onUpdateStartioId(startioId); alert('Informações do Start.io salvas!'); };
+  const handleStartioSave = () => { onUpdateStartioId(startioId); alert('ID do Start.io salvo! Os ganhos serão atualizados.'); };
 
   if (!isOpen || !userProfile) return null;
-
-  const monetizedPostsCount = userPosts.filter(p => p.is_monetized).length;
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={handleOverlayClick}>
@@ -128,7 +135,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <div>
                     <p className="text-gray-400 text-sm">Ganhos Totais (Start.io)</p>
                     <div className="text-4xl font-bold text-green-400 h-12 flex items-center">
-                      {isLoadingEarnings ? <LoadingSpinner /> : `R$ ${totalEarnings.toFixed(2).replace('.', ',')}`}
+                      {isLoadingEarnings ? (
+                        <LoadingSpinner />
+                      ) : earningsError ? (
+                        <span className="text-base font-semibold text-red-400">{earningsError}</span>
+                      ) : (
+                        `R$ ${totalEarnings.toFixed(2).replace('.', ',')}`
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-center">

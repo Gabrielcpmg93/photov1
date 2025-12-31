@@ -217,30 +217,6 @@ export const togglePostMonetization = (postId: string, isMonetized: boolean): bo
     return true;
 };
 
-export const getSimulatedStartioEarnings = async (): Promise<number> => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 750));
-
-    const status = getMonetizationStatus();
-    if (!status.isMonetized || !status.startioId) {
-        return 0;
-    }
-
-    const monetizedPostIds = getMonetizedPostIds();
-    if (monetizedPostIds.length === 0) {
-        return 0;
-    }
-    
-    // Realistic simulation logic
-    const baseEarningPerPost = 1.25; // A base value per monetized post
-    const randomFactor = (Math.random() - 0.5) * 5; // Add some variability
-    const totalEarnings = (monetizedPostIds.length * baseEarningPerPost) + randomFactor;
-
-    // Ensure earnings are not negative and have a plausible floor
-    return Math.max(0.50, totalEarnings);
-};
-
-
 // Mock function for live sessions
 export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
     const host1 = { id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana', isHost: true, isSpeaker: true, isMuted: true };
