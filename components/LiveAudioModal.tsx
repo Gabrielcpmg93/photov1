@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { LiveSession, LiveSessionParticipant, UserProfile } from '../types';
-import { IconX, IconMic, IconMicOff, IconUsers, IconSend } from './Icons';
+import { IconX, IconMic, IconMicOff, IconUsers } from './Icons';
 import { ListenersPanel } from './ListenersPanel';
 import { RequestToSpeakModal } from './RequestToSpeakModal';
-import { InvitationToast } from './InvitationToast';
+import { supabase } from '../services/supabaseService';
 
 interface LiveAudioModalProps {
   isOpen: boolean;
@@ -14,48 +14,107 @@ interface LiveAudioModalProps {
 }
 
 export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose, session: initialSession, currentUser }) => {
-  const [session, setSession] = useState<LiveSession | null>(initialSession);
+  const [session, setSession] = useState<LiveSession | null>(null);
   const [isListenersPanelOpen, setIsListenersPanelOpen] = useState(false);
-  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
   const [requestToSpeak, setRequestToSpeak] = useState<LiveSessionParticipant | null>(null);
-  const [showInvitationToast, setShowInvitationToast] = useState<LiveSessionParticipant | null>(null);
+  
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
-    setSession(initialSession);
-    if (isOpen) {
-      // Mock receiving a request to speak after 5s
-      const requestTimer = setTimeout(() => {
-        if (initialSession && initialSession.listeners.length > 0) {
-            setRequestToSpeak(initialSession.listeners[0]);
-        }
-      }, 5000);
+    if (isOpen && initialSession) {
+      setSession(initialSession);
       
-      // Mock receiving an invitation to speak from another user
-      const inviteTimer = setTimeout(() => {
-         setShowInvitationToast({ id: 'inviter_1', name: 'Julia', avatarUrl: 'https://i.pravatar.cc/150?u=julia' });
-      }, 10000);
+      const channel = supabase.channel(`live-session:${initialSession.id}`, {
+          config: { broadcast: { self: false } }
+      });
+      channelRef.current = channel;
+
+      channel.on('broadcast', { event: 'user-event' }, ({ payload }) => {
+          console.log('Received broadcast event:', payload);
+          switch (payload.type) {
+            case 'user-joined':
+              setSession(prev => {
+                if (!prev || prev.listeners.some(l => l.id === payload.user.id) || prev.speakers.some(s => s.id === payload.user.id)) return prev;
+                return { ...prev, listeners: [...prev.listeners, payload.user] };
+              });
+              break;
+            case 'user-left':
+              setSession(prev => prev ? { 
+                  ...prev, 
+                  listeners: prev.listeners.filter(u => u.id !== payload.user.id),
+                  speakers: prev.speakers.filter(u => u.id !== payload.user.id)
+              } : null);
+              break;
+            case 'speak-request':
+              if (currentUser.id === initialSession.host.id) {
+                  setRequestToSpeak(payload.user);
+              }
+              break;
+            case 'request-accepted':
+              setSession(prev => {
+                if (!prev) return null;
+                const user = payload.user;
+                if (prev.speakers.some(s => s.id === user.id)) return prev;
+                return {
+                    ...prev,
+                    listeners: prev.listeners.filter(u => u.id !== user.id),
+                    speakers: [...prev.speakers, { ...user, isSpeaker: true }]
+                };
+              });
+              break;
+          }
+      }).subscribe(status => {
+          if (status === 'SUBSCRIBED') {
+              if (currentUser.id !== initialSession.host.id) {
+                  channel.send({
+                      type: 'broadcast',
+                      event: 'user-event',
+                      payload: { type: 'user-joined', user: { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl } }
+                  });
+              }
+          }
+      });
 
       return () => {
-        clearTimeout(requestTimer);
-        clearTimeout(inviteTimer);
+          if (channelRef.current) {
+              channelRef.current.send({
+                  type: 'broadcast',
+                  event: 'user-event',
+                  payload: { type: 'user-left', user: { id: currentUser.id } }
+              });
+              supabase.removeChannel(channelRef.current);
+              channelRef.current = null;
+          }
       };
-
+    } else {
+        setSession(null);
     }
-  }, [isOpen, initialSession]);
+  }, [isOpen, initialSession, currentUser]);
 
-  const handleInvite = (user: LiveSessionParticipant) => {
-    setInvitedIds(prev => new Set(prev).add(user.id));
-    // Here you would send a notification/event to the user
-    console.log(`Invited ${user.name} to speak.`);
+  const handleRequestToSpeak = () => {
+      if (channelRef.current) {
+          const userPayload = { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl };
+          channelRef.current.send({
+              type: 'broadcast',
+              event: 'user-event',
+              payload: { type: 'speak-request', user: userPayload }
+          });
+      }
   };
 
   const handleAcceptRequest = () => {
-    if (requestToSpeak && session) {
+    if (requestToSpeak && session && channelRef.current) {
+        channelRef.current.send({
+            type: 'broadcast',
+            event: 'user-event',
+            payload: { type: 'request-accepted', user: requestToSpeak }
+        });
+
       setSession(prev => {
         if (!prev) return null;
         return {
           ...prev,
-          speakers: [...prev.speakers, requestToSpeak],
+          speakers: [...prev.speakers, { ...requestToSpeak, isSpeaker: true }],
           listeners: prev.listeners.filter(l => l.id !== requestToSpeak.id),
         };
       });
@@ -91,8 +150,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         </header>
 
         <main className="flex-1 overflow-y-auto p-6">
-            {/* Speakers */}
-            <div className="mb-8">
+            <div>
                 <h3 className="text-gray-400 font-semibold mb-3">PALESTRANTES</h3>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
                     {session.speakers.map(speaker => (
@@ -109,19 +167,6 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
                     ))}
                 </div>
             </div>
-
-            {/* Listeners */}
-            <div>
-                <h3 className="text-gray-400 font-semibold mb-3">OUVINTES</h3>
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4">
-                    {session.listeners.map(listener => (
-                         <div key={listener.id} className="flex flex-col items-center text-center">
-                            <img src={listener.avatarUrl} alt={listener.name} className="w-16 h-16 rounded-full" />
-                            <p className="mt-1 text-sm text-gray-300 truncate w-full">{listener.name}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
         </main>
 
         <footer className="p-4 bg-gray-800/50 border-t border-gray-700">
@@ -133,7 +178,7 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
                 </div>
             )}
             {!isSpeaker && (
-                 <button onClick={() => setRequestToSpeak(currentUser)} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-bold">
+                 <button onClick={handleRequestToSpeak} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-bold">
                     Pedir para Falar
                 </button>
             )}
@@ -144,9 +189,6 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
         isOpen={isListenersPanelOpen}
         onClose={() => setIsListenersPanelOpen(false)}
         listeners={session.listeners}
-        invitedIds={invitedIds}
-        onInvite={handleInvite}
-        canInvite={isHost}
       />
 
       {isHost && (
@@ -156,14 +198,6 @@ export const LiveAudioModal: React.FC<LiveAudioModalProps> = ({ isOpen, onClose,
             onDecline={() => setRequestToSpeak(null)}
             user={requestToSpeak}
         />
-      )}
-      
-      {showInvitationToast && (
-          <InvitationToast 
-            inviter={showInvitationToast}
-            onAccept={() => { console.log('Accepted invite'); setShowInvitationToast(null); }}
-            onDecline={() => setShowInvitationToast(null)}
-          />
       )}
     </div>
   );

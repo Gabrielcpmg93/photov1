@@ -8,7 +8,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionParticipant } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 import { NotificationHelpModal } from './components/NotificationHelpModal';
@@ -167,20 +167,22 @@ function App() {
     if (!userProfile) return;
     closeCreateModal();
     const newSession: LiveSession = {
-        id: `live_${Date.now()}`,
+        id: `live_${userProfile.id}_${Date.now()}`,
         title: `${userProfile.name}'s Live Room`,
         host: { ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: false, isHost: true },
         speakers: [{ ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: false, isHost: true }],
-        listeners: Array.from({ length: 15 }).map((_, i) => ({
-            id: `listener_${i}`,
-            name: `Listener ${i + 1}`,
-            avatarUrl: `https://i.pravatar.cc/150?u=listener${i}`,
-        })),
+        listeners: [],
         requestsToSpeak: [],
     };
     setCurrentLiveSession(newSession);
     setIsLiveAudioModalOpen(true);
   }, [userProfile, closeCreateModal]);
+
+  const handleJoinSession = (sessionToJoin: LiveSession) => {
+    if (!userProfile) return;
+    setCurrentLiveSession(sessionToJoin);
+    setIsLiveAudioModalOpen(true);
+  };
 
   const handleCloseLiveAudioModal = useCallback(() => {
     setIsLiveAudioModalOpen(false);
@@ -319,7 +321,7 @@ function App() {
     <div className={`min-h-screen bg-gray-100 text-gray-900 dark:bg-transparent dark:text-gray-100 transition-colors duration-300 ${appSettings.darkMode ? 'aurora-background' : ''}`}>
       <Header onNewPostClick={openCreateModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
-        {appSettings.showLiveSessions && <LiveSessionsBar sessions={activeLiveSessions} onJoinSession={() => {}} />}
+        {appSettings.showLiveSessions && <LiveSessionsBar sessions={activeLiveSessions} onJoinSession={handleJoinSession} />}
         <Feed 
           posts={posts} 
           onPostClick={handleSelectPost} 

@@ -8,12 +8,9 @@ interface ListenersPanelProps {
   isOpen: boolean;
   onClose: () => void;
   listeners: Participant[];
-  invitedIds: Set<string>;
-  onInvite: (user: Participant) => void;
-  canInvite: boolean;
 }
 
-export const ListenersPanel: React.FC<ListenersPanelProps> = ({ isOpen, onClose, listeners, invitedIds, onInvite, canInvite }) => {
+export const ListenersPanel: React.FC<ListenersPanelProps> = ({ isOpen, onClose, listeners }) => {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -21,6 +18,10 @@ export const ListenersPanel: React.FC<ListenersPanelProps> = ({ isOpen, onClose,
       onClose();
     }
   };
+
+  if (!isOpen) return (
+    <div className="fixed inset-0 z-50 transition-opacity duration-300 opacity-0 pointer-events-none" />
+  );
 
   return (
     <div className={`fixed inset-0 bg-black/60 z-50 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={handleOverlayClick}>
@@ -44,15 +45,6 @@ export const ListenersPanel: React.FC<ListenersPanelProps> = ({ isOpen, onClose,
                                 <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full" />
                                 <span className="text-white font-medium">{user.name}</span>
                             </div>
-                            {canInvite && (
-                                <button
-                                    onClick={() => onInvite(user)}
-                                    disabled={invitedIds.has(user.id)}
-                                    className="px-3 py-1 text-sm font-semibold rounded-full bg-indigo-600 text-white hover:bg-indigo-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    {invitedIds.has(user.id) ? 'Convidado' : 'Convidar'}
-                                </button>
-                            )}
                         </li>
                     ))}
                 </ul>
