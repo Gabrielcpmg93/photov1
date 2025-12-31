@@ -317,6 +317,8 @@ export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
             host: host1,
             speakers: [host1],
             listeners: [],
+            likes: 0,
+            chat: [],
         },
         {
             id: 'live_2',
@@ -324,6 +326,8 @@ export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
             host: host2,
             speakers: [host2],
             listeners: [],
+            likes: 0,
+            chat: [],
         },
     ]);
 };

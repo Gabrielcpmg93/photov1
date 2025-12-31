@@ -8,7 +8,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, LiveSessionParticipant } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 import { NotificationHelpModal } from './components/NotificationHelpModal';
@@ -87,6 +87,16 @@ function App() {
         }
       }).subscribe();
 
+    // Live Sessions
+    const liveSessionsChannel = supabase.channel('live-sessions-global')
+        .on('broadcast', { event: 'session-started' }, ({ payload }) => {
+            setActiveLiveSessions(current => [payload.session, ...current]);
+        })
+        .on('broadcast', { event: 'session-ended' }, ({ payload }) => {
+            setActiveLiveSessions(current => current.filter(s => s.id !== payload.sessionId));
+        }).subscribe();
+
+
     // Notifications for likes and comments on user's posts
     if (userProfile) {
         const userPostIds = posts.filter(p => p.user_id === userProfile.id).map(p => p.id);
@@ -113,6 +123,7 @@ function App() {
             
             return () => {
                 supabase.removeChannel(postsChannel);
+                supabase.removeChannel(liveSessionsChannel);
                 supabase.removeChannel(notificationsChannel);
             };
         }
@@ -120,6 +131,7 @@ function App() {
 
     return () => {
       supabase.removeChannel(postsChannel);
+      supabase.removeChannel(liveSessionsChannel);
     };
   }, [appSettings.pushNotifications, userProfile, posts]);
 
@@ -173,9 +185,21 @@ function App() {
         speakers: [{ ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: false, isHost: true }],
         listeners: [],
         requestsToSpeak: [],
+        likes: 0,
+        chat: [],
     };
     setCurrentLiveSession(newSession);
     setIsLiveAudioModalOpen(true);
+
+    const channel = supabase.channel('live-sessions-global');
+    channel.subscribe(() => {
+        channel.send({
+            type: 'broadcast',
+            event: 'session-started',
+            payload: { session: newSession },
+        });
+    });
+
   }, [userProfile, closeCreateModal]);
 
   const handleJoinSession = (sessionToJoin: LiveSession) => {
@@ -184,9 +208,17 @@ function App() {
     setIsLiveAudioModalOpen(true);
   };
 
-  const handleCloseLiveAudioModal = useCallback(() => {
+  const handleCloseLiveAudioModal = useCallback((sessionId: string) => {
     setIsLiveAudioModalOpen(false);
     setCurrentLiveSession(null);
+    const channel = supabase.channel('live-sessions-global');
+    channel.subscribe(() => {
+        channel.send({
+            type: 'broadcast',
+            event: 'session-ended',
+            payload: { sessionId },
+        });
+    });
   }, []);
 
   const handleSelectPost = useCallback(async (post: Post) => {

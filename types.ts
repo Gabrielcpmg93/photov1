@@ -65,6 +65,23 @@ export interface LiveSessionParticipant extends User {
   isHost?: boolean;
 }
 
+export interface ChatMessage {
+  id: string;
+  user: {
+    id: string;
+    name: string;
+    avatarUrl: string;
+  };
+  text: string;
+}
+
+export interface FloatingHeart {
+  id: number;
+  x: number;
+  y: number;
+}
+
+
 export interface LiveSession {
   id: string;
   title: string;
@@ -72,4 +89,6 @@ export interface LiveSession {
   speakers: LiveSessionParticipant[];
   listeners: LiveSessionParticipant[];
   requestsToSpeak?: LiveSessionParticipant[];
+  likes?: number;
+  chat?: ChatMessage[];
 }
