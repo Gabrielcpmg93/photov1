@@ -13,31 +13,46 @@ interface StoryFromSupabase {
     created_at: string;
 }
 
-export const formatPost = (post: any): Post => ({
-    id: post.id,
-    user_id: post.user_id,
-    caption: post.caption,
-    imageUrl: post.image_url,
-    likes: post.likes,
-    comments: post.comments_count,
-    created_at: post.created_at,
-    user: {
-        name: post.user_name,
-        avatarUrl: post.user_avatar_url
-    },
-    is_monetized: post.is_monetized || false,
-    earnings: post.is_monetized ? (post.likes || 0) * 0.01 + (post.comments_count || 0) * 0.05 : 0,
-});
+// Client-side Monetization Helpers
+const getMonetizationStatus = (): { isMonetized: boolean; adsenseId: string } => {
+    const status = JSON.parse(localStorage.getItem('monetization_status') || '{"isMonetized": false, "adsenseId": ""}');
+    return status;
+};
+const getMonetizedPostIds = (): string[] => JSON.parse(localStorage.getItem('monetized_post_ids') || '[]');
 
-const formatProfile = (profile: any): UserProfile => ({
-    id: profile.id,
-    name: profile.name,
-    avatarUrl: profile.avatar_url,
-    bio: profile.bio,
-    stories: [],
-    is_monetized: profile.is_monetized || false,
-    adsense_publisher_id: profile.adsense_publisher_id,
-});
+
+export const formatPost = (post: any): Post => {
+    const monetizedPostIds = getMonetizedPostIds();
+    const isMonetized = monetizedPostIds.includes(post.id);
+    return {
+        id: post.id,
+        user_id: post.user_id,
+        caption: post.caption,
+        imageUrl: post.image_url,
+        likes: post.likes,
+        comments: post.comments_count,
+        created_at: post.created_at,
+        user: {
+            name: post.user_name,
+            avatarUrl: post.user_avatar_url
+        },
+        is_monetized: isMonetized,
+        earnings: isMonetized ? (post.likes || 0) * 0.01 + (post.comments_count || 0) * 0.05 : 0,
+    };
+};
+
+const formatProfile = (profile: any): UserProfile => {
+    const monetizationStatus = getMonetizationStatus();
+    return {
+        id: profile.id,
+        name: profile.name,
+        avatarUrl: profile.avatar_url,
+        bio: profile.bio,
+        stories: [],
+        is_monetized: monetizationStatus.isMonetized,
+        adsense_publisher_id: monetizationStatus.adsenseId,
+    };
+};
 
 const formatComment = (comment: any): Comment => ({
     id: comment.id,
@@ -79,22 +94,17 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
         return null;
     }
 
+    const profile = formatProfile(data);
     const user: User = { name: data.name, avatarUrl: data.avatar_url };
 
-    return {
-        id: data.id,
-        name: data.name,
-        avatarUrl: data.avatar_url,
-        bio: data.bio,
-        stories: (data.stories as StoryFromSupabase[]).map(story => ({
-            id: story.id,
-            imageUrl: story.image_url,
-            createdAt: story.created_at,
-            user: user,
-        })),
-        is_monetized: data.is_monetized || false,
-        adsense_publisher_id: data.adsense_publisher_id,
-    };
+    profile.stories = (data.stories as StoryFromSupabase[]).map(story => ({
+        id: story.id,
+        imageUrl: story.image_url,
+        createdAt: story.created_at,
+        user: user,
+    }));
+    
+    return profile;
 };
 
 export const getCommentsForPost = async (postId: string) => {
@@ -181,20 +191,29 @@ export const getSavedPostIds = (): string[] => JSON.parse(localStorage.getItem('
 export const savePost = (postId: string) => localStorage.setItem('saved_posts', JSON.stringify([...getSavedPostIds(), postId]));
 export const unsavePost = (postId: string) => localStorage.setItem('saved_posts', JSON.stringify(getSavedPostIds().filter(id => id !== postId)));
 
-// Monetization Functions
-export const updateMonetizationStatus = async (userId: string, isMonetized: boolean): Promise<boolean> => {
-    const { error } = await supabase.from('profiles').update({ is_monetized: isMonetized }).eq('id', userId);
-    if (error) { console.error('Error updating monetization status:', error.message); return false; }
+// Monetization Functions (using localStorage for simulation)
+export const updateMonetizationStatus = (isMonetized: boolean): boolean => {
+    const status = getMonetizationStatus();
+    status.isMonetized = isMonetized;
+    localStorage.setItem('monetization_status', JSON.stringify(status));
     return true;
 };
-export const updateAdsenseId = async (userId: string, adsenseId: string): Promise<boolean> => {
-    const { error } = await supabase.from('profiles').update({ adsense_publisher_id: adsenseId }).eq('id', userId);
-    if (error) { console.error('Error updating AdSense ID:', error.message); return false; }
+export const updateAdsenseId = (adsenseId: string): boolean => {
+    const status = getMonetizationStatus();
+    status.adsenseId = adsenseId;
+    localStorage.setItem('monetization_status', JSON.stringify(status));
     return true;
 };
-export const togglePostMonetization = async (postId: string, isMonetized: boolean): Promise<boolean> => {
-    const { error } = await supabase.from('posts').update({ is_monetized: isMonetized }).eq('id', postId);
-    if (error) { console.error('Error toggling post monetization:', error.message); return false; }
+export const togglePostMonetization = (postId: string, isMonetized: boolean): boolean => {
+    let monetizedIds = getMonetizedPostIds();
+    if (isMonetized) {
+        if (!monetizedIds.includes(postId)) {
+            monetizedIds.push(postId);
+        }
+    } else {
+        monetizedIds = monetizedIds.filter(id => id !== postId);
+    }
+    localStorage.setItem('monetized_post_ids', JSON.stringify(monetizedIds));
     return true;
 };
 
