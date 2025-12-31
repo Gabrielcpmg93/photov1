@@ -188,10 +188,10 @@ function App() {
     }
   }, [userProfile]);
 
-  const handleUpdateAdsenseId = useCallback((adsenseId: string) => {
+  const handleUpdateStartioId = useCallback((startioId: string) => {
       if (!userProfile) return;
-      if (db.updateAdsenseId(adsenseId)) { 
-          setUserProfile(p => p ? { ...p, adsense_publisher_id: adsenseId } : null); 
+      if (db.updateStartioId(startioId)) { 
+          setUserProfile(p => p ? { ...p, startio_app_id: startioId } : null); 
       }
   }, [userProfile]);
 
@@ -227,7 +227,7 @@ function App() {
       </main>
       <CreatePostModal isOpen={isCreateModalOpen} onClose={closeCreateModal} onPostSubmit={addPost} onStartLiveSession={handleStartLiveSession} />
       {selectedPost && userProfile && <PostDetailModal post={selectedPost} onClose={handleClosePostDetail} onToggleLike={handleToggleLike} onAddComment={() => {}} onDeletePost={handleDeletePost} currentUser={userProfile} />}
-      <ProfileModal isOpen={isProfileModalOpen} onClose={closeProfileModal} userProfile={userProfile} userPosts={userPosts} savedPosts={savedPosts} onUpdateProfile={handleUpdateProfile} onUpdateProfilePicture={() => Promise.resolve()} onOpenSettings={openSettingsModal} onStartStoryCreation={() => {}} onOpenStoryViewer={() => {}} onSelectPost={handleSelectPost} onDeletePost={handleDeletePost} onUpdateMonetizationStatus={handleUpdateMonetizationStatus} onTogglePostMonetization={handleTogglePostMonetization} onUpdateAdsenseId={handleUpdateAdsenseId} />
+      <ProfileModal isOpen={isProfileModalOpen} onClose={closeProfileModal} userProfile={userProfile} userPosts={userPosts} savedPosts={savedPosts} onUpdateProfile={handleUpdateProfile} onUpdateProfilePicture={() => Promise.resolve()} onOpenSettings={openSettingsModal} onStartStoryCreation={() => {}} onOpenStoryViewer={() => {}} onSelectPost={handleSelectPost} onDeletePost={handleDeletePost} onUpdateMonetizationStatus={handleUpdateMonetizationStatus} onTogglePostMonetization={handleTogglePostMonetization} onUpdateStartioId={handleUpdateStartioId} />
       <SettingsModal isOpen={isSettingsModalOpen} onClose={closeSettingsModal} settings={appSettings} onUpdateSettings={setAppSettings} />
       {userProfile && <LiveAudioModal isOpen={isLiveAudioModalOpen} onClose={handleCloseLiveAudioModal} session={currentLiveSession} currentUser={userProfile} />}
     </div>

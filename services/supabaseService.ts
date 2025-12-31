@@ -14,8 +14,8 @@ interface StoryFromSupabase {
 }
 
 // Client-side Monetization Helpers
-const getMonetizationStatus = (): { isMonetized: boolean; adsenseId: string } => {
-    const status = JSON.parse(localStorage.getItem('monetization_status') || '{"isMonetized": false, "adsenseId": ""}');
+const getMonetizationStatus = (): { isMonetized: boolean; startioId: string } => {
+    const status = JSON.parse(localStorage.getItem('monetization_status') || '{"isMonetized": false, "startioId": ""}');
     return status;
 };
 const getMonetizedPostIds = (): string[] => JSON.parse(localStorage.getItem('monetized_post_ids') || '[]');
@@ -50,7 +50,7 @@ const formatProfile = (profile: any): UserProfile => {
         bio: profile.bio,
         stories: [],
         is_monetized: monetizationStatus.isMonetized,
-        adsense_publisher_id: monetizationStatus.adsenseId,
+        startio_app_id: monetizationStatus.startioId,
     };
 };
 
@@ -198,9 +198,9 @@ export const updateMonetizationStatus = (isMonetized: boolean): boolean => {
     localStorage.setItem('monetization_status', JSON.stringify(status));
     return true;
 };
-export const updateAdsenseId = (adsenseId: string): boolean => {
+export const updateStartioId = (startioId: string): boolean => {
     const status = getMonetizationStatus();
-    status.adsenseId = adsenseId;
+    status.startioId = startioId;
     localStorage.setItem('monetization_status', JSON.stringify(status));
     return true;
 };

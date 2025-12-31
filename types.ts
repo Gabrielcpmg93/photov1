@@ -40,7 +40,7 @@ export interface UserProfile extends User {
   bio: string;
   stories?: Story[];
   is_monetized?: boolean;
-  adsense_publisher_id?: string;
+  startio_app_id?: string;
 }
 
 export interface NewPost {

@@ -20,7 +20,7 @@ interface ProfileModalProps {
   onDeletePost: (postId: string, imageUrl: string) => void;
   onUpdateMonetizationStatus: (isMonetized: boolean) => void;
   onTogglePostMonetization: (postId: string, isMonetized: boolean) => void;
-  onUpdateAdsenseId: (adsenseId: string) => void;
+  onUpdateStartioId: (startioId: string) => void;
 }
 
 type ActiveTab = 'posts' | 'saved' | 'performance' | 'monetization';
@@ -35,19 +35,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     isOpen, onClose, userProfile, userPosts, savedPosts,
     onUpdateProfile, onUpdateProfilePicture, onOpenSettings, 
     onSelectPost, onDeletePost,
-    onUpdateMonetizationStatus, onTogglePostMonetization, onUpdateAdsenseId
+    onUpdateMonetizationStatus, onTogglePostMonetization, onUpdateStartioId
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(userProfile?.name ?? '');
   const [bio, setBio] = useState(userProfile?.bio ?? '');
-  const [adsenseId, setAdsenseId] = useState(userProfile?.adsense_publisher_id ?? '');
+  const [startioId, setStartioId] = useState(userProfile?.startio_app_id ?? '');
   const [activeTab, setActiveTab] = useState<ActiveTab>('posts');
   const [isUploading, setIsUploading] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); setAdsenseId(userProfile.adsense_publisher_id ?? ''); } }, [userProfile]);
+  useEffect(() => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); setStartioId(userProfile.startio_app_id ?? ''); } }, [userProfile]);
   useEffect(() => { if (isOpen) { setActiveTab('posts'); document.body.style.overflow = 'hidden'; } else { document.body.style.overflow = 'unset'; setIsEditing(false); } return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
   
   const handleSave = () => { onUpdateProfile({ name, bio }); setIsEditing(false); };
@@ -57,7 +57,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const file = event.target.files?.[0];
     if (file) { setIsUploading(true); await onUpdateProfilePicture(file); setIsUploading(false); }
   };
-  const handleAdsenseSave = () => { onUpdateAdsenseId(adsenseId); alert('Informações do AdSense salvas!'); };
+  const handleStartioSave = () => { onUpdateStartioId(startioId); alert('Informações do Start.io salvas!'); };
 
   if (!isOpen || !userProfile) return null;
 
@@ -120,8 +120,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     <ul className="space-y-3 max-h-40 overflow-y-auto pr-2">{userPosts.map(post => (<li key={post.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg"><div className="flex items-center space-x-3"><img src={post.imageUrl} alt="" className="w-12 h-12 object-cover rounded-md" /><div><p className="text-sm font-semibold truncate max-w-xs">{post.caption}</p><p className="text-xs text-green-400">Ganhos: R$ {(post.earnings || 0).toFixed(2).replace('.', ',')}</p></div></div><Toggle enabled={post.is_monetized || false} onChange={(val) => onTogglePostMonetization(post.id, val)} /></li>))}</ul>
                   </div>
                   <div>
-                    <h4 className="text-lg font-semibold mb-3">Integração Google AdSense</h4>
-                    <div className="space-y-2"><label htmlFor="adsenseId" className="text-sm font-medium text-gray-300">Seu ID de Editor (pub-xxxxxxxxxxxxxxxx)</label><input id="adsenseId" type="text" value={adsenseId} onChange={(e) => setAdsenseId(e.target.value)} placeholder="pub-xxxxxxxxxxxxxxxx" className="w-full p-2 bg-white/5 border border-white/10 rounded-lg" /><button onClick={handleAdsenseSave} className="w-full px-4 py-2 bg-indigo-600 rounded-lg font-semibold">Salvar ID</button></div>
+                    <h4 className="text-lg font-semibold mb-3">Integração Start.io</h4>
+                    <div className="space-y-2">
+                        <label htmlFor="startioId" className="text-sm font-medium text-gray-300">Seu Start.io App ID</label>
+                        <input id="startioId" type="text" value={startioId} onChange={(e) => setStartioId(e.target.value)} placeholder="Seu App ID do Start.io" className="w-full p-2 bg-white/5 border border-white/10 rounded-lg" />
+                        <button onClick={handleStartioSave} className="w-full px-4 py-2 bg-indigo-600 rounded-lg font-semibold">Salvar ID</button>
+                    </div>
                   </div>
                 </div>
               )}
