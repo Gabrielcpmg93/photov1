@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost, Story } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
@@ -302,4 +302,26 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
         createdAt: data.created_at,
         user: user,
     };
+};
+
+// Mock function for live sessions
+export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
+    console.log("Fetching mock active live sessions...");
+    // In a real app, this would fetch from a 'live_sessions' table.
+    return Promise.resolve([
+        {
+            id: 'live_1',
+            title: 'Discussão sobre IA e Criatividade',
+            host: { id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana' },
+            speakers: [],
+            listeners: [],
+        },
+        {
+            id: 'live_2',
+            title: 'Música ao vivo e bate-papo',
+            host: { id: 'user_3', name: 'Carlos', avatarUrl: 'https://i.pravatar.cc/150?u=carlos' },
+            speakers: [],
+            listeners: [],
+        },
+    ]);
 };

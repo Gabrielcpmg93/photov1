@@ -51,10 +51,25 @@ export interface AppSettings {
   showLiveSessions: boolean;
 }
 
-// FIX: Add missing MusicTrack interface
 export interface MusicTrack {
   id: string;
   title: string;
   artist: string;
   track_url: string;
+}
+
+export interface LiveSessionParticipant extends User {
+  id: string;
+  isSpeaker?: boolean;
+  isMuted?: boolean;
+  isHost?: boolean;
+}
+
+export interface LiveSession {
+  id: string;
+  title: string;
+  host: LiveSessionParticipant;
+  speakers: LiveSessionParticipant[];
+  listeners: LiveSessionParticipant[];
+  requestsToSpeak?: LiveSessionParticipant[];
 }

@@ -2,13 +2,14 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { generateCaptionForImage } from '../services/geminiService';
 import { LoadingSpinner } from './LoadingSpinner';
-import { IconSparkles, IconX, IconUpload, IconCamera, IconType, IconSmile, IconCrop } from './Icons';
+import { IconSparkles, IconX, IconUpload, IconCamera, IconType, IconSmile, IconCrop, IconMic } from './Icons';
 import type { NewPost } from '../types';
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPostSubmit: (post: NewPost) => void;
+  onStartLiveSession: () => void;
 }
 
 type Step = 'selectType' | 'upload' | 'editText' | 'editImage' | 'finalize';
@@ -96,7 +97,7 @@ const generateImageFromText = (text: string): Promise<File> => {
 };
 
 
-export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose, onPostSubmit }) => {
+export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose, onPostSubmit, onStartLiveSession }) => {
   const [step, setStep] = useState<Step>('selectType');
   const [postType, setPostType] = useState<PostType | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -268,12 +269,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         return (
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-6">O que você quer criar?</h2>
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <button onClick={() => { setPostType('image'); setStep('upload'); }} className="flex-1 flex flex-col items-center justify-center p-6 bg-white/5 hover:bg-white/10 rounded-lg transition-colors">
-                <IconCamera className="w-12 h-12 text-indigo-400 mb-2"/> <span className="font-semibold">Foto ou Vídeo</span>
+                <IconCamera className="w-12 h-12 text-indigo-400 mb-2"/> <span className="font-semibold">Foto</span>
               </button>
               <button onClick={() => { setPostType('text'); setStep('editText'); }} className="flex-1 flex flex-col items-center justify-center p-6 bg-white/5 hover:bg-white/10 rounded-lg transition-colors">
-                <IconType className="w-12 h-12 text-purple-400 mb-2"/> <span className="font-semibold">Postagem de Texto</span>
+                <IconType className="w-12 h-12 text-purple-400 mb-2"/> <span className="font-semibold">Texto</span>
+              </button>
+               <button onClick={onStartLiveSession} className="flex-1 flex flex-col items-center justify-center p-6 bg-white/5 hover:bg-white/10 rounded-lg transition-colors">
+                <IconMic className="w-12 h-12 text-red-400 mb-2"/> <span className="font-semibold">Sessão de Áudio</span>
               </button>
             </div>
           </div>

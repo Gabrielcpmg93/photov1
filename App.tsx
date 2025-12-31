@@ -8,10 +8,12 @@ import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 import { NotificationHelpModal } from './components/NotificationHelpModal';
+import { LiveSessionsBar } from './components/LiveSessionsBar';
+import { LiveAudioModal } from './components/LiveAudioModal';
 
 // Since there is no auth, we'll hardcode the user ID.
 // In a real app, this would come from the authenticated user session.
@@ -47,48 +49,79 @@ function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [newlyAddedStory, setNewlyAddedStory] = useState<Story | null>(null);
+  const [isLiveAudioModalOpen, setIsLiveAudioModalOpen] = useState(false);
+  const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | null>(null);
+  const [activeLiveSessions, setActiveLiveSessions] = useState<LiveSession[]>([]);
 
 
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true);
-      // Fetch posts and profile together. This is the critical data for initial interaction.
-      const [fetchedPosts, fetchedProfile] = await Promise.all([
+      const [fetchedPosts, fetchedProfile, fetchedLiveSessions] = await Promise.all([
           db.getPosts(),
           db.getUserProfile(CURRENT_USER_ID),
+          db.getActiveLiveSessions(),
       ]);
       setPosts(fetchedPosts as Post[]);
       setUserProfile(fetchedProfile as UserProfile);
-      setIsLoading(false); // UI is now ready with essential data
+      setActiveLiveSessions(fetchedLiveSessions as LiveSession[]);
+      setIsLoading(false);
     };
 
     loadInitialData();
-  }, []); // Empty dependency array means this runs only once on mount
+  }, []);
 
 
-  // Real-time subscription for new posts
+  // Real-time subscriptions
   useEffect(() => {
-    const channel = supabase.channel('public:posts')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, 
-      (payload) => {
+    // New posts
+    const postsChannel = supabase.channel('public:posts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
         const newPost = db.formatPost(payload.new);
-        // Add post to state
         setPosts(currentPosts => [newPost, ...currentPosts]);
-
-        // Trigger notification if enabled and the post is from another user
-        if (appSettings.pushNotifications && userProfile && newPost.user.name !== userProfile.name) {
+        if (appSettings.pushNotifications && userProfile && newPost.user_id !== userProfile.id) {
           showNotification(`Nova postagem de ${newPost.user.name}`, {
             body: newPost.caption.substring(0, 100),
             icon: newPost.imageUrl,
           });
         }
-      })
-      .subscribe();
+      }).subscribe();
+
+    // Notifications for likes and comments on user's posts
+    if (userProfile) {
+        const userPostIds = posts.filter(p => p.user_id === userProfile.id).map(p => p.id);
+        if (userPostIds.length > 0) {
+            const notificationsChannel = supabase.channel('notifications-channel')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments', filter: `post_id=in.(${userPostIds.join(',')})` }, (payload) => {
+                    if (appSettings.pushNotifications && payload.new.user_name !== userProfile.name) {
+                        const post = posts.find(p => p.id === payload.new.post_id);
+                        showNotification(`${payload.new.user_name} comentou sua postagem`, {
+                            body: `"${payload.new.text.substring(0, 50)}..."`,
+                            icon: post?.imageUrl,
+                        });
+                    }
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts', filter: `id=in.(${userPostIds.join(',')})` }, (payload) => {
+                     if (appSettings.pushNotifications && payload.new.likes > payload.old.likes) {
+                        showNotification(`Nova curtida na sua postagem!`, {
+                            body: `Sua postagem "${payload.new.caption.substring(0, 50)}..." foi curtida.`,
+                            icon: payload.new.image_url,
+                        });
+                    }
+                })
+                .subscribe();
+            
+            return () => {
+                supabase.removeChannel(postsChannel);
+                supabase.removeChannel(notificationsChannel);
+            };
+        }
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(postsChannel);
     };
-  }, [appSettings.pushNotifications, userProfile]);
+  }, [appSettings.pushNotifications, userProfile, posts]);
 
 
   useEffect(() => {
@@ -103,7 +136,7 @@ function App() {
     if (newlyAddedStory) {
         setIsLoading(false);
         setIsStoryViewerOpen(true);
-        setNewlyAddedStory(null); // Reset after opening
+        setNewlyAddedStory(null);
     }
   }, [newlyAddedStory]);
 
@@ -116,7 +149,7 @@ function App() {
   const openSettingsModal = useCallback(() => {
     closeProfileModal();
     setIsSettingsModalOpen(true);
-  }, [closeProfileModal]);
+  }, []);
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
   
   const openNotificationHelpModal = useCallback(() => setIsNotificationHelpModalOpen(true), []);
@@ -127,8 +160,32 @@ function App() {
         closeProfileModal();
         setIsStoryViewerOpen(true);
     }
-  }, [userProfile?.stories, closeProfileModal]);
+  }, [userProfile?.stories]);
   const closeStoryViewer = useCallback(() => setIsStoryViewerOpen(false), []);
+  
+  const handleStartLiveSession = useCallback(() => {
+    if (!userProfile) return;
+    closeCreateModal();
+    const newSession: LiveSession = {
+        id: `live_${Date.now()}`,
+        title: `${userProfile.name}'s Live Room`,
+        host: { ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: false, isHost: true },
+        speakers: [{ ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: false, isHost: true }],
+        listeners: Array.from({ length: 15 }).map((_, i) => ({
+            id: `listener_${i}`,
+            name: `Listener ${i + 1}`,
+            avatarUrl: `https://i.pravatar.cc/150?u=listener${i}`,
+        })),
+        requestsToSpeak: [],
+    };
+    setCurrentLiveSession(newSession);
+    setIsLiveAudioModalOpen(true);
+  }, [userProfile, closeCreateModal]);
+
+  const handleCloseLiveAudioModal = useCallback(() => {
+    setIsLiveAudioModalOpen(false);
+    setCurrentLiveSession(null);
+  }, []);
 
   const handleSelectPost = useCallback(async (post: Post) => {
     const comments = await db.getCommentsForPost(post.id);
@@ -137,28 +194,17 @@ function App() {
 
   const handleSelectPostFromProfile = useCallback((post: Post) => {
     closeProfileModal();
-    // Use a timeout to ensure the profile modal has finished its closing animation
-    setTimeout(() => {
-      handleSelectPost(post);
-    }, 300);
-  }, [handleSelectPost, closeProfileModal]);
+    setTimeout(() => handleSelectPost(post), 300);
+  }, [handleSelectPost]);
 
-  const handleClosePostDetail = useCallback(() => {
-    setSelectedPost(null);
-  }, []);
+  const handleClosePostDetail = useCallback(() => setSelectedPost(null), []);
 
   const handleDeletePost = useCallback(async (postId: string, imageUrl: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir esta postagem? Esta ação não pode ser desfeita.')) {
-        return;
-    }
+    if (!window.confirm('Tem certeza que deseja excluir esta postagem?')) return;
     
-    const success = await db.deletePost(postId, imageUrl);
-    if (success) {
-        if (selectedPost?.id === postId) {
-            handleClosePostDetail();
-        }
+    if (await db.deletePost(postId, imageUrl)) {
+        if (selectedPost?.id === postId) handleClosePostDetail();
         setPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
-        // TODO: Add a success toast/notification
     } else {
         alert('Não foi possível excluir a postagem.');
     }
@@ -171,39 +217,17 @@ function App() {
     const newLikedState = !post.liked;
     const newLikesCount = newLikedState ? post.likes + 1 : post.likes - 1;
 
-    // Optimistic update
-    const updatePostsState = (p: Post) => ({ ...p, liked: newLikedState, likes: newLikesCount });
-    setPosts(prev => prev.map(p => p.id === postId ? updatePostsState(p) : p));
-    if (selectedPost?.id === postId) {
-      setSelectedPost(updatePostsState(selectedPost));
-    }
+    const update = (p: Post) => ({ ...p, liked: newLikedState, likes: newLikesCount });
+    setPosts(prev => prev.map(p => p.id === postId ? update(p) : p));
+    if (selectedPost?.id === postId) setSelectedPost(update(selectedPost));
 
-    const updatedPost = await db.toggleLike(postId, newLikesCount);
-    
-    if (appSettings.pushNotifications && newLikedState) {
-      showNotification('Postagem Curtida!', {
-        body: `Você curtiu a postagem de ${post.user.name}.`,
-        icon: post.imageUrl,
-      });
-    }
-  }, [posts, selectedPost, appSettings.pushNotifications]);
+    await db.toggleLike(postId, newLikesCount);
+  }, [posts, selectedPost]);
 
   const handleToggleSave = useCallback((postId: string) => {
-    const post = posts.find(p => p.id === postId);
-    if (!post) return;
-
-    const newSavedState = !post.saved;
-
-    // Optimistic update for UI responsiveness
-    const updatePostState = (p: Post) => ({ ...p, saved: newSavedState });
-
-    setPosts(currentPosts =>
-      currentPosts.map(p => (p.id === postId ? updatePostState(p) : p))
-    );
-
-    if (selectedPost && selectedPost.id === postId) {
-      setSelectedPost(prev => (prev ? updatePostState(prev) : null));
-    }
+    const update = (p: Post) => ({ ...p, saved: !p.saved });
+    setPosts(currentPosts => currentPosts.map(p => (p.id === postId ? update(p) : p)));
+    if (selectedPost?.id === postId) setSelectedPost(prev => (prev ? update(prev) : null));
   }, [posts, selectedPost]);
 
   const handleAddComment = useCallback(async (postId: string, commentText: string) => {
@@ -212,71 +236,36 @@ function App() {
     const newComment = await db.addComment(postId, commentText, userProfile);
     
     if (newComment && selectedPost) {
-      const updatedCommentList = [...(selectedPost.commentList || []), newComment];
-      setSelectedPost({ ...selectedPost, commentList: updatedCommentList, comments: updatedCommentList.length });
-       setPosts(prevPosts => prevPosts.map(p => p.id === postId ? {...p, comments: p.comments + 1} : p));
-
-       if (appSettings.pushNotifications) {
-        showNotification('Novo Comentário!', {
-          body: `Você comentou: "${commentText}"`,
-          icon: selectedPost.imageUrl,
-        });
-      }
+      const updatedList = [...(selectedPost.commentList || []), newComment];
+      setSelectedPost({ ...selectedPost, commentList: updatedList, comments: updatedList.length });
+      setPosts(prev => prev.map(p => p.id === postId ? {...p, comments: p.comments + 1} : p));
     }
-  }, [selectedPost, userProfile, appSettings.pushNotifications]);
-
+  }, [selectedPost, userProfile]);
 
   const addPost = useCallback(async (newPostData: NewPost) => {
     if (!userProfile) return;
     closeCreateModal();
     setIsLoading(true);
-
-    const newPost = await db.createPost(newPostData, userProfile);
-    if(newPost) {
-        // The real-time listener will add the post, so we don't add it twice.
-        // setPosts(prevPosts => [newPost as Post, ...prevPosts]); 
-        if (appSettings.pushNotifications) {
-          showNotification('Nova Postagem Criada!', {
-            body: `Sua postagem "${newPost.caption.substring(0, 30)}..." foi publicada.`,
-            icon: newPost.imageUrl,
-          });
-        }
-    }
+    await db.createPost(newPostData, userProfile);
     setIsLoading(false);
-  }, [closeCreateModal, userProfile, appSettings.pushNotifications]);
+  }, [closeCreateModal, userProfile]);
 
   const handleUpdateProfile = useCallback(async (newProfileData: Pick<UserProfile, 'name' | 'bio'>) => {
     if (!userProfile) return;
-    const updatedProfile = await db.updateUserProfile(userProfile.id, newProfileData);
-    if (updatedProfile) {
-        setUserProfile(prevProfile => {
-            if (!prevProfile) return updatedProfile as UserProfile;
-            return {
-                ...prevProfile,
-                name: updatedProfile.name,
-                bio: updatedProfile.bio,
-            };
-        });
+    const updated = await db.updateUserProfile(userProfile.id, newProfileData);
+    if (updated) {
+        setUserProfile(prev => prev ? { ...prev, name: updated.name, bio: updated.bio } : updated as UserProfile);
     }
   }, [userProfile]);
 
   const handleUpdateProfilePicture = useCallback(async (file: File) => {
     if (!userProfile) return;
-    
     const newAvatarUrl = await db.updateUserProfilePicture(userProfile.id, file, userProfile.avatarUrl);
     if (newAvatarUrl) {
-        // Update profile state
-        const updatedProfile = { ...userProfile, avatarUrl: newAvatarUrl };
-        setUserProfile(updatedProfile);
-
-        // Update posts in feed to reflect new avatar
-        setPosts(prevPosts => prevPosts.map(p => 
-            p.user_id === userProfile.id ? { ...p, user: { ...p.user, avatarUrl: newAvatarUrl } } : p
-        ));
-
-        // Update selected post if it's from the user
-        if (selectedPost && selectedPost.user_id === userProfile.id) {
-            setSelectedPost(prev => prev ? { ...prev, user: { ...prev.user, avatarUrl: newAvatarUrl } } : null);
+        setUserProfile(p => p ? { ...p, avatarUrl: newAvatarUrl } : null);
+        setPosts(prev => prev.map(p => p.user_id === userProfile.id ? { ...p, user: { ...p.user, avatarUrl: newAvatarUrl } } : p));
+        if (selectedPost?.user_id === userProfile.id) {
+            setSelectedPost(p => p ? { ...p, user: { ...p.user, avatarUrl: newAvatarUrl } } : null);
         }
     }
   }, [userProfile, selectedPost]);
@@ -284,30 +273,14 @@ function App() {
   const handleAddStory = useCallback(async (storyFile: File) => {
       if(!userProfile) return;
       setIsLoading(true);
-
       const newStory = await db.addStory(userProfile.id, storyFile, { name: userProfile.name, avatarUrl: userProfile.avatarUrl });
-      
       if (newStory) {
-        setUserProfile(prevProfile => {
-            if (!prevProfile) return null;
-            const existingStories = prevProfile.stories || [];
-            return {
-                ...prevProfile,
-                stories: [...existingStories, newStory as Story]
-            };
-        });
+        setUserProfile(p => p ? { ...p, stories: [...(p.stories || []), newStory] } : null);
         setNewlyAddedStory(newStory);
-
-         if (appSettings.pushNotifications) {
-            showNotification('Novo Story Adicionado!', {
-                body: 'Seu story foi publicado com sucesso.',
-                icon: newStory.imageUrl,
-            });
-        }
       } else {
         setIsLoading(false);
       }
-  }, [userProfile, appSettings.pushNotifications]);
+  }, [userProfile]);
 
   const handleStartStoryCreation = useCallback((storyFile: File) => {
     closeProfileModal();
@@ -316,20 +289,13 @@ function App() {
 
 
   const handleUpdateSettings = useCallback((newSettings: AppSettings) => {
-    if (newSettings.pushNotifications && !appSettings.pushNotifications) {
-      if ('Notification' in window) {
-        if (Notification.permission === 'default') {
-          Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-              setAppSettings(newSettings);
-              showNotification('Notificações Ativadas!', { body: 'Você agora receberá atualizações.' });
-            }
-          });
-          return;
-        } else if (Notification.permission === 'denied') {
-          openNotificationHelpModal();
-          return;
-        }
+    if (newSettings.pushNotifications && !appSettings.pushNotifications && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(p => { if (p === 'granted') setAppSettings(newSettings); });
+        return;
+      } else if (Notification.permission === 'denied') {
+        openNotificationHelpModal();
+        return;
       }
     }
     setAppSettings(newSettings);
@@ -353,6 +319,7 @@ function App() {
     <div className={`min-h-screen bg-gray-100 text-gray-900 dark:bg-transparent dark:text-gray-100 transition-colors duration-300 ${appSettings.darkMode ? 'aurora-background' : ''}`}>
       <Header onNewPostClick={openCreateModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
+        {appSettings.showLiveSessions && <LiveSessionsBar sessions={activeLiveSessions} onJoinSession={() => {}} />}
         <Feed 
           posts={posts} 
           onPostClick={handleSelectPost} 
@@ -367,6 +334,7 @@ function App() {
         isOpen={isCreateModalOpen}
         onClose={closeCreateModal}
         onPostSubmit={addPost}
+        onStartLiveSession={handleStartLiveSession}
       />
       {selectedPost && userProfile && (
         <PostDetailModal
@@ -402,12 +370,20 @@ function App() {
         isOpen={isNotificationHelpModalOpen}
         onClose={closeNotificationHelpModal}
       />
-      {userProfile && userProfile.stories && userProfile.stories.length > 0 && (
+      {userProfile?.stories?.length > 0 && (
         <StoryViewerModal
             isOpen={isStoryViewerOpen}
             onClose={closeStoryViewer}
             stories={userProfile.stories}
             user={userProfile}
+        />
+      )}
+      {userProfile && (
+        <LiveAudioModal 
+            isOpen={isLiveAudioModalOpen}
+            onClose={handleCloseLiveAudioModal}
+            session={currentLiveSession}
+            currentUser={userProfile}
         />
       )}
     </div>
