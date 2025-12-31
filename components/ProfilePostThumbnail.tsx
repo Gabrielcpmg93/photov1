@@ -7,9 +7,10 @@ interface ProfilePostThumbnailProps {
   post: Post;
   onClick: () => void;
   onDelete: (postId: string, imageUrl: string) => void;
+  showDeleteButton?: boolean;
 }
 
-export const ProfilePostThumbnail: React.FC<ProfilePostThumbnailProps> = ({ post, onClick, onDelete }) => {
+export const ProfilePostThumbnail: React.FC<ProfilePostThumbnailProps> = ({ post, onClick, onDelete, showDeleteButton = true }) => {
   
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering onClick for the thumbnail
@@ -38,13 +39,15 @@ export const ProfilePostThumbnail: React.FC<ProfilePostThumbnailProps> = ({ post
           </div>
         </div>
       </div>
-      <button
-        onClick={handleDeleteClick}
-        className="absolute top-1.5 right-1.5 z-10 rounded-full bg-black/50 p-1.5 text-white/80 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-500 hover:text-white"
-        aria-label="Excluir postagem"
-      >
-        <IconTrash className="h-4 w-4" />
-      </button>
+      {showDeleteButton && (
+        <button
+            onClick={handleDeleteClick}
+            className="absolute top-1.5 right-1.5 z-10 rounded-full bg-black/50 p-1.5 text-white/80 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-500 hover:text-white"
+            aria-label="Excluir postagem"
+        >
+            <IconTrash className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 };

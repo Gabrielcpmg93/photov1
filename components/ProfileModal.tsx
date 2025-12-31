@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Post, Comment as CommentType } from '../types';
-import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconCamera } from './Icons';
+import { IconX, IconSettings, IconPlusCircle, IconHeart, IconMessageCircle, IconCamera, IconBookmark } from './Icons';
 import { ProfilePostThumbnail } from './ProfilePostThumbnail';
 import * as db from '../services/supabaseService';
 import { supabase } from '../services/supabaseService';
@@ -11,6 +11,7 @@ interface ProfileModalProps {
   onClose: () => void;
   userProfile: UserProfile | null;
   userPosts: Post[];
+  savedPosts: Post[];
   onUpdateProfile: (newProfile: Pick<UserProfile, 'name' | 'bio'>) => void;
   onUpdateProfilePicture: (file: File) => void;
   onOpenSettings: () => void;
@@ -20,14 +21,15 @@ interface ProfileModalProps {
   onDeletePost: (postId: string, imageUrl: string) => void;
 }
 
-type ActiveTab = 'posts' | 'performance';
+type ActiveTab = 'posts' | 'saved' | 'performance';
 type Activity = { type: 'comment', data: CommentType, post: Post };
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ 
     isOpen, 
     onClose, 
     userProfile, 
-    userPosts, 
+    userPosts,
+    savedPosts,
     onUpdateProfile,
     onUpdateProfilePicture,
     onOpenSettings, 
@@ -48,11 +50,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (userProfile) {
+      setName(userProfile.name);
+      setBio(userProfile.bio);
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
     if (isOpen) {
-      if (userProfile) {
-        setName(userProfile.name);
-        setBio(userProfile.bio);
-      }
       setActiveTab('posts'); // Reset to default tab on open
       setActivityFeed([]); // Clear activity on open
       document.body.style.overflow = 'hidden';
@@ -63,7 +68,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, userProfile]);
+  }, [isOpen]);
   
   // Real-time activity feed effect
   useEffect(() => {
@@ -295,6 +300,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   >
                       Postagens
                   </button>
+                   <button 
+                      onClick={() => setActiveTab('saved')}
+                      className={`px-3 py-2 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'saved' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                  >
+                      Salvos
+                  </button>
                   <button 
                       onClick={() => setActiveTab('performance')}
                       className={`px-3 py-2 font-semibold text-sm rounded-t-lg transition-colors ${activeTab === 'performance' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-400 hover:text-white'}`}
@@ -314,6 +325,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     onDelete={onDeletePost}
                   />
                 ))}
+              </div>
+            )}
+            {activeTab === 'saved' && (
+               <div className="grid grid-cols-3 gap-1">
+                {savedPosts.length > 0 ? (
+                  savedPosts.map(post => (
+                    <ProfilePostThumbnail 
+                      key={post.id} 
+                      post={post} 
+                      onClick={() => onSelectPost(post)} 
+                      onDelete={onDeletePost}
+                      showDeleteButton={false}
+                    />
+                  ))
+                ) : (
+                  <div className="col-span-3 text-center text-gray-500 py-10 flex flex-col items-center">
+                    <IconBookmark className="w-12 h-12 mb-2" />
+                    <p>Nenhuma postagem salva ainda.</p>
+                    <p className="text-xs mt-1">Clique no ícone de marcador nas postagens para salvá-las aqui.</p>
+                  </div>
+                )}
               </div>
             )}
             {activeTab === 'performance' && (

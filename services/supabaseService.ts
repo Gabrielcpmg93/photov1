@@ -120,6 +120,20 @@ const uploadFile = async (bucket: string, file: File) => {
     return data.publicUrl;
 };
 
+const deleteFile = async (bucket: string, fileUrl: string) => {
+    try {
+        const fileName = fileUrl.split('/').pop();
+        if (fileName) {
+            const { error: storageError } = await supabase.storage.from(bucket).remove([fileName]);
+            if (storageError) {
+                console.error(`Error deleting image from ${bucket}:`, storageError.message);
+            }
+        }
+    } catch (e) {
+        console.error('Error parsing image URL for deletion:', e);
+    }
+};
+
 
 export const createPost = async (postData: NewPost, user: UserProfile) => {
     const imageUrl = await uploadFile('posts', postData.imageFile);
@@ -171,18 +185,7 @@ export const deletePost = async (postId: string, imageUrl: string): Promise<bool
     }
 
     // 3. Delete image from storage
-    try {
-        const fileName = imageUrl.split('/').pop();
-        if (fileName) {
-            const { error: storageError } = await supabase.storage.from('posts').remove([fileName]);
-            if (storageError) {
-                // Log the error but don't fail the whole operation, as the DB part is more critical.
-                console.error('Error deleting image from storage:', storageError.message);
-            }
-        }
-    } catch (e) {
-        console.error('Error parsing image URL for deletion:', e);
-    }
+    await deleteFile('posts', imageUrl);
 
     return true;
 };
@@ -241,7 +244,7 @@ export const updateUserProfile = async (userId: string, profileData: Pick<UserPr
     return formatProfile(data);
 };
 
-export const updateUserProfilePicture = async (userId: string, imageFile: File): Promise<string | null> => {
+export const updateUserProfilePicture = async (userId: string, imageFile: File, oldAvatarUrl: string): Promise<string | null> => {
     const newAvatarUrl = await uploadFile('avatars', imageFile);
     if (!newAvatarUrl) return null;
 
@@ -254,7 +257,14 @@ export const updateUserProfilePicture = async (userId: string, imageFile: File):
     
     if (error) {
         console.error('Error updating profile picture URL:', error.message);
+        // If DB update fails, delete the newly uploaded file to prevent orphans
+        await deleteFile('avatars', newAvatarUrl);
         return null;
+    }
+    
+    // Delete old avatar from storage
+    if (oldAvatarUrl && !oldAvatarUrl.includes('default-avatar.png')) {
+        await deleteFile('avatars', oldAvatarUrl);
     }
     
     // Also update existing posts and comments with the new avatar url for consistency

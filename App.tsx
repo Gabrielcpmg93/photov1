@@ -263,7 +263,7 @@ function App() {
   const handleUpdateProfilePicture = useCallback(async (file: File) => {
     if (!userProfile) return;
     
-    const newAvatarUrl = await db.updateUserProfilePicture(userProfile.id, file);
+    const newAvatarUrl = await db.updateUserProfilePicture(userProfile.id, file, userProfile.avatarUrl);
     if (newAvatarUrl) {
         // Update profile state
         const updatedProfile = { ...userProfile, avatarUrl: newAvatarUrl };
@@ -347,6 +347,7 @@ function App() {
   }
 
   const userPosts = userProfile ? posts.filter(p => p.user_id === userProfile.id) : [];
+  const savedPosts = posts.filter(p => p.saved);
 
   return (
     <div className={`min-h-screen bg-gray-100 text-gray-900 dark:bg-transparent dark:text-gray-100 transition-colors duration-300 ${appSettings.darkMode ? 'aurora-background' : ''}`}>
@@ -382,6 +383,7 @@ function App() {
           onClose={closeProfileModal}
           userProfile={userProfile}
           userPosts={userPosts}
+          savedPosts={savedPosts}
           onUpdateProfile={handleUpdateProfile}
           onUpdateProfilePicture={handleUpdateProfilePicture}
           onOpenSettings={openSettingsModal}
