@@ -171,19 +171,25 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
   const handleDragMove = (e: React.PointerEvent) => {
     if (!dragInfo || !imageContainerRef.current) return;
+
     const containerRect = imageContainerRef.current.getBoundingClientRect();
-    let newX = e.clientX - containerRect.left - dragInfo.offsetX;
-    let newY = e.clientY - containerRect.top - dragInfo.offsetY;
-    
-    // Clamp position within the container
-    newX = Math.max(0, Math.min(containerRect.width, newX + (dragInfo.target === 'text' ? (e.currentTarget as HTMLElement).offsetWidth / 2 : (e.currentTarget as HTMLElement).offsetWidth / 2 ))) - (dragInfo.target === 'text' ? (e.currentTarget as HTMLElement).offsetWidth/2 : (e.currentTarget as HTMLElement).offsetWidth/2)
-    newY = Math.max(0, Math.min(containerRect.height, newY + (e.currentTarget as HTMLElement).offsetHeight)) - (e.currentTarget as HTMLElement).offsetHeight;
+    const draggedEl = e.currentTarget as HTMLElement;
 
+    const newLeft = e.clientX - containerRect.left - dragInfo.offsetX;
+    const newTop = e.clientY - containerRect.top - dragInfo.offsetY;
 
-    if (dragInfo.target === 'text') {
-      setTextOverlay(p => p ? { ...p, x: newX + e.currentTarget.offsetWidth / 2, y: newY + e.currentTarget.offsetHeight / 2 } : null);
-    } else {
-      setEmojiOverlay(p => p ? { ...p, x: newX + e.currentTarget.offsetWidth / 2, y: newY + e.currentTarget.offsetHeight / 2 } : null);
+    let newCenterX = newLeft + draggedEl.offsetWidth / 2;
+    let newCenterY = newTop + draggedEl.offsetHeight / 2;
+
+    const halfWidth = draggedEl.offsetWidth / 2;
+    const halfHeight = draggedEl.offsetHeight / 2;
+    newCenterX = Math.max(halfWidth, Math.min(containerRect.width - halfWidth, newCenterX));
+    newCenterY = Math.max(halfHeight, Math.min(containerRect.height - halfHeight, newCenterY));
+
+    if (dragInfo.target === 'text' && textOverlay) {
+      setTextOverlay({ ...textOverlay, x: newCenterX, y: newCenterY });
+    } else if (dragInfo.target === 'emoji' && emojiOverlay) {
+      setEmojiOverlay({ ...emojiOverlay, x: newCenterX, y: newCenterY });
     }
   };
 
@@ -222,10 +228,30 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               <button onClick={processAndFinalize} disabled={!textContent.trim() || isProcessing} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold transition-colors disabled:bg-gray-500">{isProcessing ? 'Processando...' : 'Próximo'}</button>
             </div> </> );
       case 'editImage': return ( <div>
-            <div ref={imageContainerRef} onPointerMove={handleDragMove} onPointerUp={handleDragEnd} onPointerLeave={handleDragEnd} className="relative w-full overflow-hidden mb-4 select-none" style={{ aspectRatio }}>
+            <div ref={imageContainerRef} className="relative w-full overflow-hidden mb-4 select-none" style={{ aspectRatio }}>
               <img ref={imageRef} src={previewUrl!} alt="Preview" className={`w-full h-full object-cover ${filter}`} draggable="false" />
-              {textOverlay && <div onPointerDown={(e) => handleDragStart(e, 'text')} className="absolute text-4xl font-bold cursor-move p-2" style={{ color: textOverlay.color, fontFamily: textOverlay.fontFamily, left: textOverlay.x, top: textOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>{textOverlay.text}</div>}
-              {emojiOverlay && <div onPointerDown={(e) => handleDragStart(e, 'emoji')} className="absolute cursor-move" style={{ fontSize: `${emojiOverlay.size}px`, left: emojiOverlay.x, top: emojiOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>{emojiOverlay.emoji}</div>}
+              {textOverlay && (
+                <div
+                    onPointerDown={(e) => handleDragStart(e, 'text')}
+                    onPointerMove={handleDragMove}
+                    onPointerUp={handleDragEnd}
+                    onPointerLeave={handleDragEnd}
+                    className="absolute text-4xl font-bold cursor-move p-2 touch-none"
+                    style={{ color: textOverlay.color, fontFamily: textOverlay.fontFamily, left: textOverlay.x, top: textOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>
+                    {textOverlay.text}
+                </div>
+               )}
+              {emojiOverlay && (
+                <div
+                    onPointerDown={(e) => handleDragStart(e, 'emoji')}
+                    onPointerMove={handleDragMove}
+                    onPointerUp={handleDragEnd}
+                    onPointerLeave={handleDragEnd}
+                    className="absolute cursor-move touch-none"
+                    style={{ fontSize: `${emojiOverlay.size}px`, left: emojiOverlay.x, top: emojiOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>
+                    {emojiOverlay.emoji}
+                </div>
+              )}
             </div>
             <div className="space-y-4">
               <div className="flex justify-around bg-white/5 p-2 rounded-lg">
@@ -276,7 +302,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
           {error && <p className="text-red-400 text-sm mt-4 text-center">{error}</p>}
         </div>
       </div>
-       <style>{` @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; } @keyframes fadeInUp { from { opacity: 0; transform: scale(0.95) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } } .select-none { user-select: none; } `}</style>
+       <style>{` @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; } @keyframes fadeInUp { from { opacity: 0; transform: scale(0.95) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } } .select-none { user-select: none; } .touch-none { touch-action: none; } `}</style>
     </div>
   );
 };
