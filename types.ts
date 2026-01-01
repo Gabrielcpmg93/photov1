@@ -63,6 +63,7 @@ export interface MusicTrack {
   track_url: string;
 }
 
+// FIX: Add missing type definitions for Live Sessions feature
 export interface LiveSessionParticipant extends User {
   id: string;
   isSpeaker?: boolean;
@@ -71,30 +72,24 @@ export interface LiveSessionParticipant extends User {
 }
 
 export interface ChatMessage {
-  id: string;
-  user: {
     id: string;
-    name: string;
-    avatarUrl: string;
-  };
-  text: string;
+    user: { id: string; name: string; avatarUrl: string; };
+    text: string;
+}
+
+export interface LiveSession {
+    id: string;
+    title: string;
+    host: LiveSessionParticipant;
+    speakers: LiveSessionParticipant[];
+    listeners: LiveSessionParticipant[];
+    likes?: number;
+    chat?: ChatMessage[];
+    shareUrl?: string;
 }
 
 export interface FloatingHeart {
-  id: number;
-  x: number;
-  y: number;
-}
-
-
-export interface LiveSession {
-  id: string;
-  title: string;
-  host: LiveSessionParticipant;
-  speakers: LiveSessionParticipant[];
-  listeners: LiveSessionParticipant[];
-  requestsToSpeak?: LiveSessionParticipant[];
-  likes?: number;
-  chat?: ChatMessage[];
-  shareUrl?: string;
+    id: number;
+    x: number;
+    y: number;
 }

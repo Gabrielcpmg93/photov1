@@ -8,12 +8,9 @@ import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
-import { NotificationHelpModal } from './components/NotificationHelpModal';
-import { LiveSessionsBar } from './components/LiveSessionsBar';
-import { LiveAudioModal } from './components/LiveAudioModal';
 
 const CURRENT_USER_ID = '3e5b32f9-674b-4c2d-9c3b-2a134a942663';
 
@@ -24,73 +21,40 @@ const initialSettings: AppSettings = {
   showLiveSessions: true,
 };
 
-const showNotification = (title: string, options: NotificationOptions) => {
-  if (!('Notification' in window)) { console.error("Este browser não suporta notificações."); return; }
-  if (Notification.permission === 'granted') { new Notification(title, options); }
-};
-
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isNotificationHelpModalOpen, setIsNotificationHelpModalOpen] = useState(false);
-  const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
-  const [newlyAddedStory, setNewlyAddedStory] = useState<Story | null>(null);
-  const [isLiveAudioModalOpen, setIsLiveAudioModalOpen] = useState(false);
-  const [currentLiveSession, setCurrentLiveSession] = useState<LiveSession | null>(null);
-  const [activeLiveSessions, setActiveLiveSessions] = useState<LiveSession[]>([]);
 
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true);
-      const [fetchedPosts, fetchedProfile, fetchedLiveSessions] = await Promise.all([
-          db.getPosts(), db.getUserProfile(CURRENT_USER_ID), db.getActiveLiveSessions(),
+      const [fetchedPosts, fetchedProfile] = await Promise.all([
+          db.getPosts(), db.getUserProfile(CURRENT_USER_ID),
       ]);
       const savedPostIds = db.getSavedPostIds();
       const postsWithSavedState = (fetchedPosts as Post[]).map(p => ({ ...p, saved: savedPostIds.includes(p.id) }));
       
       setPosts(postsWithSavedState);
       setUserProfile(fetchedProfile as UserProfile);
-      setActiveLiveSessions(fetchedLiveSessions as LiveSession[]);
       setIsLoading(false);
     };
     loadInitialData();
   }, []);
 
   useEffect(() => {
-    if (!isLoading && userProfile) {
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get('live_session_id');
-        if (sessionId) {
-            const sessionToJoin = activeLiveSessions.find(s => s.id === sessionId) || 
-                                  (currentLiveSession?.id === sessionId ? currentLiveSession : null);
-            if (sessionToJoin) {
-                handleJoinSession(sessionToJoin);
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        }
-    }
-  }, [isLoading, activeLiveSessions, userProfile, currentLiveSession]);
-
-  useEffect(() => {
     const postsChannel = supabase.channel('public:posts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
         const newPost = db.formatPost(payload.new);
         setPosts(currentPosts => [newPost, ...currentPosts]);
     }).subscribe();
-    const liveSessionsChannel = supabase.channel('live-sessions-global').on('broadcast', { event: 'session-started' }, ({ payload }) => {
-        setActiveLiveSessions(current => [payload.session, ...current.filter(s => s.id !== payload.session.id)]);
-    }).on('broadcast', { event: 'session-ended' }, ({ payload }) => {
-        setActiveLiveSessions(current => current.filter(s => s.id !== payload.sessionId));
-    }).subscribe();
 
     return () => {
       supabase.removeChannel(postsChannel);
-      supabase.removeChannel(liveSessionsChannel);
     };
   }, []);
 
@@ -101,36 +65,6 @@ function App() {
   const openSettingsModal = useCallback(() => { closeProfileModal(); setIsSettingsModalOpen(true); }, []);
   const closeSettingsModal = useCallback(() => setIsSettingsModalOpen(false), []);
   const handleClosePostDetail = useCallback(() => setSelectedPost(null), []);
-
-  const handleStartLiveSession = useCallback(() => {
-    if (!userProfile) return;
-    closeCreateModal();
-    const newSessionId = `live_${userProfile.id}_${Date.now()}`;
-    const newSession: LiveSession = {
-        id: newSessionId, title: `${userProfile.name}'s Live Room`,
-        host: { ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: true, isHost: true },
-        speakers: [{ ...userProfile, id: userProfile.id, isSpeaker: true, isMuted: true, isHost: true }],
-        listeners: [], requestsToSpeak: [], likes: 0, chat: [],
-        shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=${newSessionId}`,
-    };
-    setCurrentLiveSession(newSession);
-    setIsLiveAudioModalOpen(true);
-    const channel = supabase.channel('live-sessions-global');
-    channel.subscribe(() => { channel.send({ type: 'broadcast', event: 'session-started', payload: { session: newSession } }); });
-  }, [userProfile, closeCreateModal]);
-
-  const handleJoinSession = (sessionToJoin: LiveSession) => {
-    if (!userProfile) return;
-    setCurrentLiveSession(sessionToJoin);
-    setIsLiveAudioModalOpen(true);
-  };
-
-  const handleCloseLiveAudioModal = useCallback((sessionId: string) => {
-    setIsLiveAudioModalOpen(false);
-    setCurrentLiveSession(null);
-    const channel = supabase.channel('live-sessions-global');
-    channel.subscribe(() => { channel.send({ type: 'broadcast', event: 'session-ended', payload: { sessionId } }); });
-  }, []);
 
   const handleSelectPost = useCallback(async (post: Post) => {
     const comments = await db.getCommentsForPost(post.id);
@@ -222,14 +156,12 @@ function App() {
     <div className={`min-h-screen bg-gray-100 text-gray-900 dark:bg-transparent dark:text-gray-100 transition-colors duration-300 ${appSettings.darkMode ? 'aurora-background' : ''}`}>
       <Header onNewPostClick={openCreateModal} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
-        {appSettings.showLiveSessions && <LiveSessionsBar sessions={activeLiveSessions} onJoinSession={handleJoinSession} />}
         <Feed posts={posts} onPostClick={handleSelectPost} currentUser={userProfile} onDeletePost={handleDeletePost} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
       </main>
-      <CreatePostModal isOpen={isCreateModalOpen} onClose={closeCreateModal} onPostSubmit={addPost} onStartLiveSession={handleStartLiveSession} />
+      <CreatePostModal isOpen={isCreateModalOpen} onClose={closeCreateModal} onPostSubmit={addPost} />
       {selectedPost && userProfile && <PostDetailModal post={selectedPost} onClose={handleClosePostDetail} onToggleLike={handleToggleLike} onAddComment={() => {}} onDeletePost={handleDeletePost} currentUser={userProfile} />}
       <ProfileModal isOpen={isProfileModalOpen} onClose={closeProfileModal} userProfile={userProfile} userPosts={userPosts} savedPosts={savedPosts} onUpdateProfile={handleUpdateProfile} onUpdateProfilePicture={() => Promise.resolve()} onOpenSettings={openSettingsModal} onStartStoryCreation={() => {}} onOpenStoryViewer={() => {}} onSelectPost={handleSelectPost} onDeletePost={handleDeletePost} onUpdateMonetizationStatus={handleUpdateMonetizationStatus} onTogglePostMonetization={handleTogglePostMonetization} onUpdateStartioId={handleUpdateStartioId} />
       <SettingsModal isOpen={isSettingsModalOpen} onClose={closeSettingsModal} settings={appSettings} onUpdateSettings={setAppSettings} />
-      {userProfile && <LiveAudioModal isOpen={isLiveAudioModalOpen} onClose={handleCloseLiveAudioModal} session={currentLiveSession} currentUser={userProfile} />}
     </div>
   );
 }

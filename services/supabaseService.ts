@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
@@ -215,14 +215,4 @@ export const togglePostMonetization = (postId: string, isMonetized: boolean): bo
     }
     localStorage.setItem('monetized_post_ids', JSON.stringify(monetizedIds));
     return true;
-};
-
-// Mock function for live sessions
-export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
-    const host1 = { id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana', isHost: true, isSpeaker: true, isMuted: true };
-    const host2 = { id: 'user_3', name: 'Carlos', avatarUrl: 'https://i.pravatar.cc/150?u=carlos', isHost: true, isSpeaker: true, isMuted: true };
-    return Promise.resolve([
-        { id: 'live_1', title: 'Discussão sobre IA e Criatividade', host: host1, speakers: [host1], listeners: [], likes: 0, chat: [], shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_1` },
-        { id: 'live_2', title: 'Música ao vivo e bate-papo', host: host2, speakers: [host2], listeners: [], likes: 0, chat: [], shareUrl: `${window.location.origin}${window.location.pathname}?live_session_id=live_2` },
-    ]);
 };
