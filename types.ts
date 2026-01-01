@@ -24,8 +24,6 @@ export interface Post {
   saved?: boolean;
   commentList?: Comment[];
   created_at?: string;
-  is_monetized?: boolean;
-  earnings?: number;
 }
 
 export interface Story {
@@ -39,8 +37,6 @@ export interface UserProfile extends User {
   id: string;
   bio: string;
   stories?: Story[];
-  is_monetized?: boolean;
-  startio_app_id?: string;
 }
 
 export interface NewPost {
@@ -51,7 +47,6 @@ export interface NewPost {
 export interface AppSettings {
   darkMode: boolean;
   emailNotifications: boolean;
-
   pushNotifications: boolean;
   showLiveSessions: boolean;
 }
@@ -62,34 +57,36 @@ export interface MusicTrack {
   artist: string;
   track_url: string;
 }
+// FIX: Add missing type definitions for Live Audio feature
+export interface Participant extends User {
+    id: string;
+}
 
-// FIX: Add missing type definitions for Live Sessions feature
-export interface LiveSessionParticipant extends User {
-  id: string;
+export interface LiveSessionParticipant extends Participant {
   isSpeaker?: boolean;
   isMuted?: boolean;
   isHost?: boolean;
 }
 
 export interface ChatMessage {
-    id: string;
-    user: { id: string; name: string; avatarUrl: string; };
-    text: string;
-}
-
-export interface LiveSession {
-    id: string;
-    title: string;
-    host: LiveSessionParticipant;
-    speakers: LiveSessionParticipant[];
-    listeners: LiveSessionParticipant[];
-    likes?: number;
-    chat?: ChatMessage[];
-    shareUrl?: string;
+  id: string;
+  user: Participant;
+  text: string;
 }
 
 export interface FloatingHeart {
     id: number;
     x: number;
     y: number;
+}
+
+export interface LiveSession {
+  id: string;
+  title: string;
+  host: LiveSessionParticipant;
+  speakers: LiveSessionParticipant[];
+  listeners: LiveSessionParticipant[];
+  likes: number;
+  chat: ChatMessage[];
+  shareUrl: string;
 }

@@ -85,7 +85,7 @@ function App() {
     const newLikesCount = newLikedState ? post.likes + 1 : post.likes - 1;
     const updatedPost = await db.toggleLike(postId, newLikesCount);
     if (updatedPost) {
-        const update = (p: Post) => ({ ...p, liked: newLikedState, likes: newLikesCount, earnings: updatedPost.earnings });
+        const update = (p: Post) => ({ ...p, liked: newLikedState, likes: newLikesCount });
         setPosts(prev => prev.map(p => p.id === postId ? update(p) : p));
         if (selectedPost?.id === postId) setSelectedPost(update(selectedPost));
     }
@@ -115,36 +115,6 @@ function App() {
     if (updated) { setUserProfile(prev => prev ? { ...prev, ...updated } : updated as UserProfile); }
   }, [userProfile]);
 
-  const handleUpdateMonetizationStatus = useCallback((isMonetized: boolean) => {
-    if (!userProfile) return;
-    if (db.updateMonetizationStatus(isMonetized)) { 
-        setUserProfile(p => p ? { ...p, is_monetized: isMonetized } : null); 
-    }
-  }, [userProfile]);
-
-  const handleUpdateStartioId = useCallback((startioId: string) => {
-      if (!userProfile) return;
-      if (db.updateStartioId(startioId)) { 
-          setUserProfile(p => p ? { ...p, startio_app_id: startioId } : null); 
-      }
-  }, [userProfile]);
-
-  const handleTogglePostMonetization = useCallback((postId: string, isMonetized: boolean) => {
-    if (db.togglePostMonetization(postId, isMonetized)) {
-      setPosts(prevPosts => prevPosts.map(p => {
-        if (p.id === postId) {
-          const newMonetizedState = isMonetized;
-          return {
-            ...p,
-            is_monetized: newMonetizedState,
-            earnings: newMonetizedState ? (p.likes * 0.01 + p.comments * 0.05) : 0,
-          };
-        }
-        return p;
-      }));
-    }
-  }, []);
-
   if (isLoading && !selectedPost) {
     return <div className="min-h-screen bg-gray-100 dark:bg-transparent flex items-center justify-center"><LoadingSpinner /></div>;
   }
@@ -160,7 +130,7 @@ function App() {
       </main>
       <CreatePostModal isOpen={isCreateModalOpen} onClose={closeCreateModal} onPostSubmit={addPost} />
       {selectedPost && userProfile && <PostDetailModal post={selectedPost} onClose={handleClosePostDetail} onToggleLike={handleToggleLike} onAddComment={() => {}} onDeletePost={handleDeletePost} currentUser={userProfile} />}
-      <ProfileModal isOpen={isProfileModalOpen} onClose={closeProfileModal} userProfile={userProfile} userPosts={userPosts} savedPosts={savedPosts} onUpdateProfile={handleUpdateProfile} onUpdateProfilePicture={() => Promise.resolve()} onOpenSettings={openSettingsModal} onStartStoryCreation={() => {}} onOpenStoryViewer={() => {}} onSelectPost={handleSelectPost} onDeletePost={handleDeletePost} onUpdateMonetizationStatus={handleUpdateMonetizationStatus} onTogglePostMonetization={handleTogglePostMonetization} onUpdateStartioId={handleUpdateStartioId} />
+      <ProfileModal isOpen={isProfileModalOpen} onClose={closeProfileModal} userProfile={userProfile} userPosts={userPosts} savedPosts={savedPosts} onUpdateProfile={handleUpdateProfile} onUpdateProfilePicture={() => Promise.resolve()} onOpenSettings={openSettingsModal} onStartStoryCreation={() => {}} onOpenStoryViewer={() => {}} onSelectPost={handleSelectPost} onDeletePost={handleDeletePost} />
       <SettingsModal isOpen={isSettingsModalOpen} onClose={closeSettingsModal} settings={appSettings} onUpdateSettings={setAppSettings} />
     </div>
   );

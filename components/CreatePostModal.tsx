@@ -14,7 +14,7 @@ interface CreatePostModalProps {
 type Step = 'selectType' | 'upload' | 'editText' | 'editImage' | 'finalize';
 type PostType = 'image' | 'text';
 type AspectRatio = '1/1' | '4/5' | '16/9';
-type TextOverlay = { text: string; color: string; fontFamily: string; x: number; y: number; };
+type TextOverlay = { text: string; color: string; fontFamily: string; x: number; y: number; size: number; };
 type EmojiOverlay = { emoji: string; size: number; x: number; y: number; };
 
 const FILTERS = [
@@ -28,7 +28,7 @@ const EMOJIS = ['😂', '😍', '🤔', '🔥', '🎉', '👍', '❤️', '🤯'
 const FONT_FACES = ['Inter', 'Georgia', 'Courier New', 'Brush Script MT', 'Arial Black', 'Comic Sans MS'];
 const COLOR_SWATCHES = ['#FFFFFF', '#000000', '#EF4444', '#3B82F6', '#22C55E', '#EAB308', '#8B5CF6'];
 
-const generateImageFromText = (text: string): Promise<File> => {
+const generateGradientBackground = (): Promise<File> => {
     return new Promise((resolve, reject) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -37,25 +37,12 @@ const generateImageFromText = (text: string): Promise<File> => {
         const gradient = ctx.createLinearGradient(0, 0, width, height);
         gradient.addColorStop(0, '#8B5CF6'); gradient.addColorStop(1, '#3B82F6');
         ctx.fillStyle = gradient; ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        let fontSize = 100; const maxLineWidth = width - 100;
-        do { fontSize -= 5; ctx.font = `bold ${fontSize}px Inter, sans-serif`; } while (ctx.measureText(text.split('\n')[0]).width > maxLineWidth && fontSize > 30);
-        const words = text.split(' '); const lines = []; let currentLine = words[0];
-        for (let i = 1; i < words.length; i++) {
-            const word = words[i]; const widthWithWord = ctx.measureText(currentLine + " " + word).width;
-            if (widthWithWord < maxLineWidth) { currentLine += " " + word; } else { lines.push(currentLine); currentLine = word; }
-        }
-        lines.push(currentLine);
-        const lineHeight = fontSize * 1.2; const totalHeight = lines.length * lineHeight;
-        let y = (height - totalHeight) / 2 + lineHeight / 2;
-        for (const line of lines) { ctx.fillText(line, width / 2, y); y += lineHeight; }
         canvas.toBlob(blob => {
-            if (blob) { resolve(new File([blob], 'text-post.png', { type: 'image/png' })); } 
+            if (blob) { resolve(new File([blob], 'gradient-background.png', { type: 'image/png' })); }
             else { reject('Failed to create blob from canvas'); }
         }, 'image/png');
     });
 };
-
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose, onPostSubmit }) => {
   const [step, setStep] = useState<Step>('selectType');
@@ -80,6 +67,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const modalRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const initialPinchStateRef = useRef<{ distance: number; size: number } | null>(null);
   
   const resetState = useCallback(() => {
     setStep('selectType'); setPostType(null); setImageFile(null); setProcessedImageFile(null); setPreviewUrl(null);
@@ -108,51 +96,61 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     catch (e) { setError("Falha ao gerar legenda."); } 
     finally { setIsProcessing(false); }
   }, [imageFile, processedImageFile]);
+  
+  const handleTextPostNext = async () => {
+      if (!textContent.trim()) return;
+      setIsProcessing(true);
+      const bgFile = await generateGradientBackground();
+      setImageFile(bgFile);
+      setPreviewUrl(URL.createObjectURL(bgFile));
+      const containerWidth = imageContainerRef.current?.offsetWidth || 300;
+      const containerHeight = imageContainerRef.current?.offsetHeight || 300;
+      setTextOverlay({ text: textContent, color: '#FFFFFF', fontFamily: 'Inter', size: 48, x: containerWidth / 2, y: containerHeight / 2 });
+      setIsProcessing(false);
+      setStep('editImage');
+  };
 
   const processAndFinalize = async () => {
-    if (postType === 'text') {
-        setIsProcessing(true); const file = await generateImageFromText(textContent); setProcessedImageFile(file);
-        setPreviewUrl(URL.createObjectURL(file)); setIsProcessing(false); setStep('finalize');
-    } else if (postType === 'image' && imageFile) {
-        setIsProcessing(true);
-        const img = imageRef.current; const container = imageContainerRef.current;
-        if (!img || !container) { setIsProcessing(false); return; }
-        const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-        if (!ctx) { setIsProcessing(false); return; }
+      setIsProcessing(true);
+      const img = imageRef.current; const container = imageContainerRef.current;
+      if (!img || !container || !imageFile) { setIsProcessing(false); return; }
+      const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+      if (!ctx) { setIsProcessing(false); return; }
 
-        const { naturalWidth, naturalHeight } = img;
-        const aspectValues: {[key in AspectRatio]: number} = { '1/1': 1, '4/5': 4 / 5, '16/9': 16 / 9 };
-        const targetAspect = aspectValues[aspectRatio];
-        let sx = 0, sy = 0, sWidth = naturalWidth, sHeight = naturalHeight;
-        const currentAspect = naturalWidth / naturalHeight;
-        if (currentAspect > targetAspect) { sWidth = naturalHeight * targetAspect; sx = (naturalWidth - sWidth) / 2; } 
-        else { sHeight = naturalWidth / targetAspect; sy = (naturalHeight - sHeight) / 2; }
-        canvas.width = sWidth; canvas.height = sHeight;
-        if(filter) ctx.filter = getComputedStyle(img).filter;
-        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
-        
-        const previewRect = container.getBoundingClientRect();
-        const scaleX = sWidth / previewRect.width;
-        const scaleY = sHeight / previewRect.height;
+      const { naturalWidth, naturalHeight } = img;
+      const aspectValues: {[key in AspectRatio]: number} = { '1/1': 1, '4/5': 4 / 5, '16/9': 16 / 9 };
+      const targetAspect = aspectValues[aspectRatio];
+      let sx = 0, sy = 0, sWidth = naturalWidth, sHeight = naturalHeight;
+      const currentAspect = naturalWidth / naturalHeight;
+      if (currentAspect > targetAspect) { sWidth = naturalHeight * targetAspect; sx = (naturalWidth - sWidth) / 2; } 
+      else { sHeight = naturalWidth / targetAspect; sy = (naturalHeight - sHeight) / 2; }
+      canvas.width = sWidth; canvas.height = sHeight;
+      if(filter) ctx.filter = getComputedStyle(img).filter;
+      ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+      
+      const previewRect = container.getBoundingClientRect();
+      const scaleX = sWidth / previewRect.width;
+      const scaleY = sHeight / previewRect.height;
 
-        if (textOverlay) {
-            ctx.font = `bold 64px "${textOverlay.fontFamily}", sans-serif`; ctx.fillStyle = textOverlay.color;
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(textOverlay.text, textOverlay.x * scaleX, textOverlay.y * scaleY);
-        }
-        if (emojiOverlay) {
-            ctx.font = `${emojiOverlay.size}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(emojiOverlay.emoji, emojiOverlay.x * scaleX, emojiOverlay.y * scaleY);
-        }
+      if (textOverlay) {
+          const fontSize = textOverlay.size * scaleX;
+          ctx.font = `bold ${fontSize}px "${textOverlay.fontFamily}", sans-serif`; ctx.fillStyle = textOverlay.color;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(textOverlay.text, textOverlay.x * scaleX, textOverlay.y * scaleY);
+      }
+      if (emojiOverlay) {
+          const fontSize = emojiOverlay.size * scaleX;
+          ctx.font = `${fontSize}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(emojiOverlay.emoji, emojiOverlay.x * scaleX, emojiOverlay.y * scaleY);
+      }
 
-        canvas.toBlob(blob => {
-            if (blob) {
-                const file = new File([blob], imageFile.name, { type: 'image/png' });
-                setProcessedImageFile(file); setPreviewUrl(URL.createObjectURL(file));
-            }
-            setIsProcessing(false); setStep('finalize');
-        }, 'image/png');
-    }
+      canvas.toBlob(blob => {
+          if (blob) {
+              const file = new File([blob], imageFile.name, { type: 'image/png' });
+              setProcessedImageFile(file); setPreviewUrl(URL.createObjectURL(file));
+          }
+          setIsProcessing(false); setStep('finalize');
+      }, 'image/png');
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -163,6 +161,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   };
 
   const handleDragStart = (e: React.PointerEvent, target: 'text' | 'emoji') => {
+    e.preventDefault();
     const el = e.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
     setDragInfo({ target, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top, });
@@ -171,31 +170,59 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
   const handleDragMove = (e: React.PointerEvent) => {
     if (!dragInfo || !imageContainerRef.current) return;
-
+    e.preventDefault();
     const containerRect = imageContainerRef.current.getBoundingClientRect();
-    const draggedEl = e.currentTarget as HTMLElement;
-
-    const newLeft = e.clientX - containerRect.left - dragInfo.offsetX;
-    const newTop = e.clientY - containerRect.top - dragInfo.offsetY;
-
-    let newCenterX = newLeft + draggedEl.offsetWidth / 2;
-    let newCenterY = newTop + draggedEl.offsetHeight / 2;
-
-    const halfWidth = draggedEl.offsetWidth / 2;
-    const halfHeight = draggedEl.offsetHeight / 2;
-    newCenterX = Math.max(halfWidth, Math.min(containerRect.width - halfWidth, newCenterX));
-    newCenterY = Math.max(halfHeight, Math.min(containerRect.height - halfHeight, newCenterY));
+    let newX = e.clientX - containerRect.left - dragInfo.offsetX;
+    let newY = e.clientY - containerRect.top - dragInfo.offsetY;
 
     if (dragInfo.target === 'text' && textOverlay) {
-      setTextOverlay({ ...textOverlay, x: newCenterX, y: newCenterY });
-    } else if (dragInfo.target === 'emoji' && emojiOverlay) {
-      setEmojiOverlay({ ...emojiOverlay, x: newCenterX, y: newCenterY });
+      setTextOverlay(p => p ? { ...p, x: newX + (e.currentTarget as HTMLElement).offsetWidth / 2, y: newY + (e.currentTarget as HTMLElement).offsetHeight / 2 } : null);
+    } else if(emojiOverlay) {
+      setEmojiOverlay(p => p ? { ...p, x: newX + (e.currentTarget as HTMLElement).offsetWidth / 2, y: newY + (e.currentTarget as HTMLElement).offsetHeight / 2 } : null);
     }
   };
 
   const handleDragEnd = (e: React.PointerEvent) => {
+    e.preventDefault();
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     setDragInfo(null);
+  };
+  
+  const getTouchDistance = (touches: React.TouchList) => {
+    const [touch1, touch2] = [touches[0], touches[1]];
+    return Math.sqrt(Math.pow(touch2.clientX - touch1.clientX, 2) + Math.pow(touch2.clientY - touch1.clientY, 2));
+  };
+
+  const handleTouchStart = (e: React.TouchEvent, target: 'text' | 'emoji') => {
+      if (e.touches.length === 2) {
+          e.preventDefault();
+          initialPinchStateRef.current = {
+              distance: getTouchDistance(e.touches),
+              size: target === 'text' ? textOverlay!.size : emojiOverlay!.size
+          };
+      }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent, target: 'text' | 'emoji') => {
+      if (e.touches.length === 2 && initialPinchStateRef.current) {
+          e.preventDefault();
+          const newDist = getTouchDistance(e.touches);
+          const scale = newDist / initialPinchStateRef.current.distance;
+          const newSize = initialPinchStateRef.current.size * scale;
+          const clampedSize = Math.max(16, Math.min(256, newSize));
+
+          if (target === 'text') {
+              setTextOverlay(p => p ? { ...p, size: clampedSize } : null);
+          } else {
+              setEmojiOverlay(p => p ? { ...p, size: clampedSize } : null);
+          }
+      }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+      if (e.touches.length < 2) {
+        initialPinchStateRef.current = null;
+      }
   };
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => { if (modalRef.current && !modalRef.current.contains(e.target as Node)) onClose(); };
@@ -225,51 +252,36 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       case 'editText': return ( <>
             <textarea value={textContent} onChange={(e) => setTextContent(e.target.value)} placeholder="No que você está pensando?" className="w-full h-48 p-3 bg-white/5 text-white border border-white/10 rounded-lg focus:ring-2 focus:ring-indigo-500 transition-colors placeholder-gray-400" />
             <div className="flex justify-end mt-4">
-              <button onClick={processAndFinalize} disabled={!textContent.trim() || isProcessing} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold transition-colors disabled:bg-gray-500">{isProcessing ? 'Processando...' : 'Próximo'}</button>
+              <button onClick={handleTextPostNext} disabled={!textContent.trim() || isProcessing} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-semibold transition-colors disabled:bg-gray-500">{isProcessing ? 'Processando...' : 'Próximo'}</button>
             </div> </> );
       case 'editImage': return ( <div>
-            <div ref={imageContainerRef} className="relative w-full overflow-hidden mb-4 select-none" style={{ aspectRatio }}>
+            <div ref={imageContainerRef} className="relative w-full overflow-hidden mb-4 select-none touch-none" style={{ aspectRatio }}>
               <img ref={imageRef} src={previewUrl!} alt="Preview" className={`w-full h-full object-cover ${filter}`} draggable="false" />
               {textOverlay && (
-                <div
-                    onPointerDown={(e) => handleDragStart(e, 'text')}
-                    onPointerMove={handleDragMove}
-                    onPointerUp={handleDragEnd}
-                    onPointerLeave={handleDragEnd}
-                    className="absolute text-4xl font-bold cursor-move p-2 touch-none"
-                    style={{ color: textOverlay.color, fontFamily: textOverlay.fontFamily, left: textOverlay.x, top: textOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>
-                    {textOverlay.text}
-                </div>
-               )}
+                <div onPointerDown={(e) => handleDragStart(e, 'text')} onPointerMove={handleDragMove} onPointerUp={handleDragEnd} onPointerLeave={handleDragEnd} onTouchStart={(e) => handleTouchStart(e, 'text')} onTouchMove={(e) => handleTouchMove(e, 'text')} onTouchEnd={handleTouchEnd}
+                    className="absolute cursor-move p-2"
+                    style={{ color: textOverlay.color, fontFamily: textOverlay.fontFamily, fontSize: `${textOverlay.size}px`, left: textOverlay.x, top: textOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>{textOverlay.text}</div>)}
               {emojiOverlay && (
-                <div
-                    onPointerDown={(e) => handleDragStart(e, 'emoji')}
-                    onPointerMove={handleDragMove}
-                    onPointerUp={handleDragEnd}
-                    onPointerLeave={handleDragEnd}
-                    className="absolute cursor-move touch-none"
-                    style={{ fontSize: `${emojiOverlay.size}px`, left: emojiOverlay.x, top: emojiOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>
-                    {emojiOverlay.emoji}
-                </div>
-              )}
+                <div onPointerDown={(e) => handleDragStart(e, 'emoji')} onPointerMove={handleDragMove} onPointerUp={handleDragEnd} onPointerLeave={handleDragEnd} onTouchStart={(e) => handleTouchStart(e, 'emoji')} onTouchMove={(e) => handleTouchMove(e, 'emoji')} onTouchEnd={handleTouchEnd}
+                     className="absolute cursor-move" style={{ fontSize: `${emojiOverlay.size}px`, left: emojiOverlay.x, top: emojiOverlay.y, transform: 'translate(-50%, -50%)', textShadow: '0 0 8px black' }}>{emojiOverlay.emoji}</div>)}
             </div>
             <div className="space-y-4">
               <div className="flex justify-around bg-white/5 p-2 rounded-lg">
-                <button onClick={() => {setShowTextEditor(!showTextEditor); setShowEmojiPicker(false); setTextOverlay(p=> p === null ? {text: 'Seu Texto', color:'#FFFFFF', fontFamily:'Inter', x: 150, y: 150} : null)}} className="p-2 hover:bg-white/10 rounded-full"><IconType/></button>
-                <button onClick={() => {setShowEmojiPicker(!showEmojiPicker); setShowTextEditor(false); setEmojiOverlay(p=> p === null ? {emoji: '😂', size: 100, x:150, y: 150} : null)}} className="p-2 hover:bg-white/10 rounded-full"><IconSmile/></button>
+                <button onClick={() => {setShowTextEditor(!showTextEditor); setShowEmojiPicker(false); if (!textOverlay) {setTextOverlay({text: 'Seu Texto', color:'#FFFFFF', fontFamily:'Inter', size: 48, x: 150, y: 150});} else {setTextOverlay(null);}}} className="p-2 hover:bg-white/10 rounded-full"><IconType/></button>
+                <button onClick={() => {setShowEmojiPicker(!showEmojiPicker); setShowTextEditor(false); if (!emojiOverlay) {setEmojiOverlay({emoji: '😂', size: 100, x:150, y: 150});} else {setEmojiOverlay(null)}}} className="p-2 hover:bg-white/10 rounded-full"><IconSmile/></button>
               </div>
 
-              {showTextEditor && ( <div className="space-y-2 bg-white/5 p-3 rounded-lg">
-                  <input type="text" placeholder="Adicionar texto..." value={textOverlay?.text} onChange={(e) => setTextOverlay(p => p? {...p, text: e.target.value} : null)} className="w-full bg-white/10 p-2 rounded-lg"/>
+              {showTextEditor && textOverlay && ( <div className="space-y-2 bg-white/5 p-3 rounded-lg">
+                  <input type="text" placeholder="Adicionar texto..." value={textOverlay.text} onChange={(e) => setTextOverlay(p => p? {...p, text: e.target.value} : null)} className="w-full bg-white/10 p-2 rounded-lg"/>
                   <div className="flex gap-2 items-center">
-                    <select onChange={(e) => setTextOverlay(p => p? {...p, fontFamily: e.target.value} : null)} value={textOverlay?.fontFamily} className="flex-grow bg-white/10 p-2 rounded-lg appearance-none text-center">
+                    <select onChange={(e) => setTextOverlay(p => p? {...p, fontFamily: e.target.value} : null)} value={textOverlay.fontFamily} className="flex-grow bg-white/10 p-2 rounded-lg appearance-none text-center">
                         {FONT_FACES.map(f => <option key={f} value={f}>{f}</option>)}
                     </select>
-                    <input type="color" value={textOverlay?.color} onChange={(e) => setTextOverlay(p => p? {...p, color: e.target.value} : null)} className="bg-transparent w-10 h-10"/>
+                    <input type="color" value={textOverlay.color} onChange={(e) => setTextOverlay(p => p? {...p, color: e.target.value} : null)} className="bg-transparent w-10 h-10"/>
                   </div>
                   <div className="flex gap-1 justify-center">{COLOR_SWATCHES.map(c => <button key={c} onClick={()=>setTextOverlay(p=>p?{...p, color:c}:null)} className="w-6 h-6 rounded-full" style={{backgroundColor:c}}/>)}</div>
               </div>)}
-              {showEmojiPicker && ( <div className="flex flex-wrap gap-2 bg-white/5 p-2 rounded-lg">{EMOJIS.map(e => <button key={e} onClick={() => setEmojiOverlay(p => p?{...p, emoji: e}:null)} className="text-3xl p-1 hover:bg-white/10 rounded-lg">{e}</button>)}</div> )}
+              {showEmojiPicker && emojiOverlay && ( <div className="flex flex-wrap gap-2 bg-white/5 p-2 rounded-lg">{EMOJIS.map(e => <button key={e} onClick={() => setEmojiOverlay(p => p?{...p, emoji: e}:null)} className="text-3xl p-1 hover:bg-white/10 rounded-lg">{e}</button>)}</div> )}
 
               <div> <h4 className="font-semibold mb-2">Proporção</h4> <div className="flex gap-2"> {(['1/1', '4/5', '16/9'] as AspectRatio[]).map(ar => <button key={ar} onClick={() => setAspectRatio(ar)} className={`flex-1 p-2 rounded-lg ${aspectRatio === ar ? 'bg-indigo-600' : 'bg-white/10'}`}>{ar}</button>)} </div> </div>
               <div> <h4 className="font-semibold mb-2">Filtros</h4> <div className="flex gap-2 overflow-x-auto pb-2"> {FILTERS.map(f => <button key={f.name} onClick={() => setFilter(f.className)} className="text-center space-y-1"><div className={`w-16 h-16 rounded-lg bg-gray-500 ${f.className} ${filter === f.className ? 'ring-2 ring-indigo-500' : ''}`}></div><span className="text-xs">{f.name}</span></button>)} </div> </div>

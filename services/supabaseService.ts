@@ -13,17 +13,7 @@ interface StoryFromSupabase {
     created_at: string;
 }
 
-// Client-side Monetization Helpers
-const getMonetizationStatus = (): { isMonetized: boolean; startioId: string } => {
-    const status = JSON.parse(localStorage.getItem('monetization_status') || '{"isMonetized": false, "startioId": ""}');
-    return status;
-};
-const getMonetizedPostIds = (): string[] => JSON.parse(localStorage.getItem('monetized_post_ids') || '[]');
-
-
 export const formatPost = (post: any): Post => {
-    const monetizedPostIds = getMonetizedPostIds();
-    const isMonetized = monetizedPostIds.includes(post.id);
     return {
         id: post.id,
         user_id: post.user_id,
@@ -36,21 +26,16 @@ export const formatPost = (post: any): Post => {
             name: post.user_name,
             avatarUrl: post.user_avatar_url
         },
-        is_monetized: isMonetized,
-        earnings: isMonetized ? (post.likes || 0) * 0.01 + (post.comments_count || 0) * 0.05 : 0,
     };
 };
 
 const formatProfile = (profile: any): UserProfile => {
-    const monetizationStatus = getMonetizationStatus();
     return {
         id: profile.id,
         name: profile.name,
         avatarUrl: profile.avatar_url,
         bio: profile.bio,
         stories: [],
-        is_monetized: monetizationStatus.isMonetized,
-        startio_app_id: monetizationStatus.startioId,
     };
 };
 
@@ -190,29 +175,3 @@ export const addStory = async (userId: string, storyFile: File, user: User): Pro
 export const getSavedPostIds = (): string[] => JSON.parse(localStorage.getItem('saved_posts') || '[]');
 export const savePost = (postId: string) => localStorage.setItem('saved_posts', JSON.stringify([...getSavedPostIds(), postId]));
 export const unsavePost = (postId: string) => localStorage.setItem('saved_posts', JSON.stringify(getSavedPostIds().filter(id => id !== postId)));
-
-// Monetization Functions (using localStorage for simulation)
-export const updateMonetizationStatus = (isMonetized: boolean): boolean => {
-    const status = getMonetizationStatus();
-    status.isMonetized = isMonetized;
-    localStorage.setItem('monetization_status', JSON.stringify(status));
-    return true;
-};
-export const updateStartioId = (startioId: string): boolean => {
-    const status = getMonetizationStatus();
-    status.startioId = startioId;
-    localStorage.setItem('monetization_status', JSON.stringify(status));
-    return true;
-};
-export const togglePostMonetization = (postId: string, isMonetized: boolean): boolean => {
-    let monetizedIds = getMonetizedPostIds();
-    if (isMonetized) {
-        if (!monetizedIds.includes(postId)) {
-            monetizedIds.push(postId);
-        }
-    } else {
-        monetizedIds = monetizedIds.filter(id => id !== postId);
-    }
-    localStorage.setItem('monetized_post_ids', JSON.stringify(monetizedIds));
-    return true;
-};
