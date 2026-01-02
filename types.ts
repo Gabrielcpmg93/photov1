@@ -49,7 +49,6 @@ export interface AppSettings {
   darkMode: boolean;
   emailNotifications: boolean;
   pushNotifications: boolean;
-  showLiveSessions: boolean;
 }
 
 export interface MusicTrack {
@@ -57,37 +56,4 @@ export interface MusicTrack {
   title: string;
   artist: string;
   track_url: string;
-}
-// FIX: Add missing type definitions for Live Audio feature
-export interface Participant extends User {
-    id: string;
-}
-
-export interface LiveSessionParticipant extends Participant {
-  isSpeaker?: boolean;
-  isMuted?: boolean;
-  isHost?: boolean;
-}
-
-export interface ChatMessage {
-  id: string;
-  user: Participant;
-  text: string;
-}
-
-export interface FloatingHeart {
-    id: number;
-    x: number;
-    y: number;
-}
-
-export interface LiveSession {
-  id: string;
-  title: string;
-  host: LiveSessionParticipant;
-  speakers: LiveSessionParticipant[];
-  listeners: LiveSessionParticipant[];
-  likes: number;
-  chat: ChatMessage[];
-  shareUrl: string;
 }

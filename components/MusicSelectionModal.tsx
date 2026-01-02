@@ -6,7 +6,7 @@ import { IconMusic, IconX } from './Icons';
 interface MusicSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectTrack: (track?: MusicTrack) => void;
+  onSelectTrack: (track: MusicTrack) => void;
   tracks: MusicTrack[];
 }
 
@@ -52,10 +52,6 @@ export const MusicSelectionModal: React.FC<MusicSelectionModalProps> = ({ isOpen
     onSelectTrack(track);
   };
   
-  const handleSkip = () => {
-    onSelectTrack(undefined);
-  };
-
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
       onClose();
@@ -97,14 +93,6 @@ export const MusicSelectionModal: React.FC<MusicSelectionModalProps> = ({ isOpen
                     </li>
                 ))}
             </ul>
-        </div>
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700">
-             <button
-              onClick={handleSkip}
-              className="w-full mt-2 px-4 py-3 bg-gray-500 hover:bg-gray-600 rounded-lg text-white font-bold text-lg transition-colors"
-            >
-              Postar sem música
-            </button>
         </div>
       </div>
       <style>{`

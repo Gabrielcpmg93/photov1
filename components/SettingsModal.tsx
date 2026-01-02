@@ -83,7 +83,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
           
           <div className="divide-y divide-white/10">
             <Toggle label="Modo Noturno" enabled={settings.darkMode} onChange={(val) => handleSettingChange('darkMode', val)} />
-            <Toggle label="Mostrar Sessões Ao Vivo" enabled={settings.showLiveSessions} onChange={(val) => handleSettingChange('showLiveSessions', val)} />
             <Toggle label="Notificações por E-mail" enabled={settings.emailNotifications} onChange={(val) => handleSettingChange('emailNotifications', val)} />
             <Toggle label="Notificações Push" enabled={settings.pushNotifications} onChange={handlePushNotificationsToggle} />
           </div>
