@@ -8,6 +8,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
 import { MusicSelectionModal } from './components/MusicSelectionModal';
+import { StoryCreationModal } from './components/StoryCreationModal';
 import { NotificationHelpModal } from './components/NotificationHelpModal';
 import * as db from './services/supabaseService';
 import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, MusicTrack } from './types';
@@ -43,10 +44,12 @@ function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
 
-  // New states for modern systems
+  // States for story creation flow
   const [viewedStoryUser, setViewedStoryUser] = useState<UserProfile | null>(null);
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
   const [storyFileToUpload, setStoryFileToUpload] = useState<File | null>(null);
+  const [isStoryCreationModalOpen, setIsStoryCreationModalOpen] = useState(false);
+  const [selectedMusicTrackForStory, setSelectedMusicTrackForStory] = useState<MusicTrack | null>(null);
   const [isNotificationHelpOpen, setNotificationHelpOpen] = useState(false);
 
 
@@ -143,23 +146,33 @@ function App() {
       }
   }, [userProfile]);
 
-  // Handlers for modern systems
+  // Story Creation Flow Handlers
   const handleStartStoryCreation = (storyFile: File) => {
       setStoryFileToUpload(storyFile);
-      setIsMusicModalOpen(true);
+      setIsStoryCreationModalOpen(true);
   };
   
-  const handleMusicTrackSelected = async (track: MusicTrack) => {
+  const handleMusicTrackSelected = (track: MusicTrack) => {
+      setSelectedMusicTrackForStory(track);
       setIsMusicModalOpen(false);
-      if (storyFileToUpload && userProfile) {
-          setIsLoading(true);
-          const newStory = await db.addStory(userProfile.id, storyFileToUpload, userProfile, track);
-          if (newStory) {
-              setUserProfile(prev => prev ? { ...prev, stories: [...(prev.stories || []), newStory] } : null);
-          }
-          setStoryFileToUpload(null);
-          setIsLoading(false);
-      }
+  };
+
+  const closeStoryCreationModal = () => {
+    setIsStoryCreationModalOpen(false);
+    setStoryFileToUpload(null);
+    setSelectedMusicTrackForStory(null);
+  };
+
+  const handlePostStory = async () => {
+    if (storyFileToUpload && selectedMusicTrackForStory && userProfile) {
+        closeStoryCreationModal();
+        setIsLoading(true);
+        const newStory = await db.addStory(userProfile.id, storyFileToUpload, userProfile, selectedMusicTrackForStory);
+        if (newStory) {
+            setUserProfile(prev => prev ? { ...prev, stories: [...(prev.stories || []), newStory] } : null);
+        }
+        setIsLoading(false);
+    }
   };
 
   const handleOpenStoryViewer = (user: UserProfile) => setViewedStoryUser(user);
@@ -189,6 +202,15 @@ function App() {
         />
       )}
       
+      <StoryCreationModal
+        isOpen={isStoryCreationModalOpen}
+        onClose={closeStoryCreationModal}
+        file={storyFileToUpload}
+        selectedTrack={selectedMusicTrackForStory}
+        onOpenMusicSelector={() => setIsMusicModalOpen(true)}
+        onPost={handlePostStory}
+      />
+
       <MusicSelectionModal
         isOpen={isMusicModalOpen}
         onClose={() => setIsMusicModalOpen(false)}
