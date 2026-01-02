@@ -8,6 +8,7 @@ interface SettingsModalProps {
   onClose: () => void;
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
+  onOpenNotificationHelp: () => void;
 }
 
 const Toggle: React.FC<{ label: string; enabled: boolean; onChange: (enabled: boolean) => void }> = ({ label, enabled, onChange }) => (
@@ -20,7 +21,7 @@ const Toggle: React.FC<{ label: string; enabled: boolean; onChange: (enabled: bo
 );
 
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onUpdateSettings, onOpenNotificationHelp }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,6 +43,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
   
   const handleSettingChange = (key: keyof AppSettings, value: boolean) => {
     onUpdateSettings({ ...settings, [key]: value });
+  };
+  
+  const handlePushNotificationsToggle = async (enabled: boolean) => {
+      if(enabled && 'Notification' in window) {
+          if (Notification.permission === 'granted') {
+              handleSettingChange('pushNotifications', true);
+          } else if (Notification.permission === 'denied') {
+              onOpenNotificationHelp();
+          } else {
+              const permission = await Notification.requestPermission();
+              if (permission === 'granted') {
+                  handleSettingChange('pushNotifications', true);
+              }
+          }
+      } else {
+          handleSettingChange('pushNotifications', false);
+      }
   };
 
   if (!isOpen) return null;
@@ -67,7 +85,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, s
             <Toggle label="Modo Noturno" enabled={settings.darkMode} onChange={(val) => handleSettingChange('darkMode', val)} />
             <Toggle label="Mostrar Sessões Ao Vivo" enabled={settings.showLiveSessions} onChange={(val) => handleSettingChange('showLiveSessions', val)} />
             <Toggle label="Notificações por E-mail" enabled={settings.emailNotifications} onChange={(val) => handleSettingChange('emailNotifications', val)} />
-            <Toggle label="Notificações Push" enabled={settings.pushNotifications} onChange={(val) => handleSettingChange('pushNotifications', val)} />
+            <Toggle label="Notificações Push" enabled={settings.pushNotifications} onChange={handlePushNotificationsToggle} />
           </div>
 
           <div className="mt-8 text-center">

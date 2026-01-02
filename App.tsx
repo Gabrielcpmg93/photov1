@@ -7,8 +7,13 @@ import { PostDetailModal } from './components/PostDetailModal';
 import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoryViewerModal } from './components/StoryViewerModal';
+import { LiveSessionsBar } from './components/LiveSessionsBar';
+import { LiveAudioModal } from './components/LiveAudioModal';
+import { ChoiceModal } from './components/ChoiceModal';
+import { MusicSelectionModal } from './components/MusicSelectionModal';
+import { NotificationHelpModal } from './components/NotificationHelpModal';
 import * as db from './services/supabaseService';
-import type { Post, Comment, UserProfile, AppSettings, NewPost, Story } from './types';
+import type { Post, Comment, UserProfile, AppSettings, NewPost, Story, LiveSession, MusicTrack } from './types';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { supabase } from './services/supabaseService';
 
@@ -21,6 +26,12 @@ const initialSettings: AppSettings = {
   showLiveSessions: true,
 };
 
+const MOCK_MUSIC_TRACKS: MusicTrack[] = [
+    { id: '1', title: 'Acoustic Breeze', artist: 'Benjamin Tissot', track_url: 'https://www.bensound.com/bensound-music/bensound-acousticbreeze.mp3' },
+    { id: '2', title: 'Going Higher', artist: 'Benjamin Tissot', track_url: 'https://www.bensound.com/bensound-music/bensound-goinghigher.mp3' },
+    { id: '3', title: 'Sunny', artist: 'Benjamin Tissot', track_url: 'https://www.bensound.com/bensound-music/bensound-sunny.mp3' },
+];
+
 function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -31,17 +42,30 @@ function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
 
+  // New states for modern systems
+  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
+  const [activeLiveSessions, setActiveLiveSessions] = useState<LiveSession[]>([]);
+  const [activeLiveSessionModal, setActiveLiveSessionModal] = useState<LiveSession | null>(null);
+  const [viewedStoryUser, setViewedStoryUser] = useState<UserProfile | null>(null);
+  const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
+  const [storyFileToUpload, setStoryFileToUpload] = useState<File | null>(null);
+  const [isNotificationHelpOpen, setNotificationHelpOpen] = useState(false);
+
+
   useEffect(() => {
     const loadInitialData = async () => {
       setIsLoading(true);
-      const [fetchedPosts, fetchedProfile] = await Promise.all([
-          db.getPosts(), db.getUserProfile(CURRENT_USER_ID),
+      const [fetchedPosts, fetchedProfile, fetchedSessions] = await Promise.all([
+          db.getPosts(), 
+          db.getUserProfile(CURRENT_USER_ID),
+          db.getActiveLiveSessions(),
       ]);
       const savedPostIds = db.getSavedPostIds();
       const postsWithSavedState = (fetchedPosts as Post[]).map(p => ({ ...p, saved: savedPostIds.includes(p.id) }));
       
       setPosts(postsWithSavedState);
       setUserProfile(fetchedProfile as UserProfile);
+      setActiveLiveSessions(fetchedSessions as LiveSession[]);
       setIsLoading(false);
     };
     loadInitialData();
@@ -114,6 +138,52 @@ function App() {
     const updated = await db.updateUserProfile(userProfile.id, newProfileData);
     if (updated) { setUserProfile(prev => prev ? { ...prev, ...updated } : updated as UserProfile); }
   }, [userProfile]);
+  
+  const handleUpdateProfilePicture = useCallback(async (file: File) => {
+      if (!userProfile) return;
+      const newUrl = await db.updateUserProfilePicture(userProfile.id, file, userProfile.avatarUrl);
+      if(newUrl) {
+          setUserProfile(p => p ? { ...p, avatarUrl: newUrl } : null);
+      }
+  }, [userProfile]);
+
+  // Handlers for modern systems
+  const handleStartLiveSession = async (title: string) => {
+    if (!userProfile) return;
+    const newSession = await db.createLiveSession(title, userProfile);
+    if (newSession) {
+      setActiveLiveSessions(prev => [newSession, ...prev]);
+      setActiveLiveSessionModal(newSession);
+    }
+  };
+  
+  const handleJoinSession = (session: LiveSession) => setActiveLiveSessionModal(session);
+  const handleCloseLiveSession = (sessionId: string) => {
+      setActiveLiveSessionModal(null);
+      // In a real app, you'd update session status from a backend event
+  };
+  
+  const handleStartStoryCreation = (storyFile: File) => {
+      setStoryFileToUpload(storyFile);
+      setIsMusicModalOpen(true);
+  };
+  
+  const handleMusicTrackSelected = async (track?: MusicTrack) => {
+      setIsMusicModalOpen(false);
+      if (storyFileToUpload && userProfile) {
+          setIsLoading(true);
+          const newStory = await db.addStory(userProfile.id, storyFileToUpload, userProfile, track);
+          if (newStory) {
+              setUserProfile(prev => prev ? { ...prev, stories: [...(prev.stories || []), newStory] } : null);
+          }
+          setStoryFileToUpload(null);
+          setIsLoading(false);
+      }
+  };
+
+  const handleOpenStoryViewer = (user: UserProfile) => setViewedStoryUser(user);
+  
+  const handleNewPostClick = () => setIsChoiceModalOpen(true);
 
   if (isLoading && !selectedPost) {
     return <div className="min-h-screen bg-gray-100 dark:bg-transparent flex items-center justify-center"><LoadingSpinner /></div>;
@@ -124,14 +194,74 @@ function App() {
 
   return (
     <div className={`min-h-screen bg-gray-100 text-gray-900 dark:bg-transparent dark:text-gray-100 transition-colors duration-300 ${appSettings.darkMode ? 'aurora-background' : ''}`}>
-      <Header onNewPostClick={openCreateModal} onProfileClick={openProfileModal} />
+      <Header onNewPostClick={handleNewPostClick} onProfileClick={openProfileModal} />
       <main className="container mx-auto px-4 py-8">
+        {appSettings.showLiveSessions && <LiveSessionsBar sessions={activeLiveSessions} onJoinSession={handleJoinSession} />}
         <Feed posts={posts} onPostClick={handleSelectPost} currentUser={userProfile} onDeletePost={handleDeletePost} onToggleLike={handleToggleLike} onToggleSave={handleToggleSave} />
       </main>
+      
+      <ChoiceModal 
+        isOpen={isChoiceModalOpen}
+        onClose={() => setIsChoiceModalOpen(false)}
+        onSelectPost={() => { setIsChoiceModalOpen(false); openCreateModal(); }}
+        onSelectLive={(title) => { setIsChoiceModalOpen(false); handleStartLiveSession(title); }}
+      />
+      
       <CreatePostModal isOpen={isCreateModalOpen} onClose={closeCreateModal} onPostSubmit={addPost} />
+
+      {activeLiveSessionModal && userProfile && (
+        <LiveAudioModal 
+            isOpen={!!activeLiveSessionModal}
+            onClose={handleCloseLiveSession}
+            session={activeLiveSessionModal}
+            currentUser={userProfile}
+        />
+      )}
+      
+      {viewedStoryUser && (
+        <StoryViewerModal 
+            isOpen={!!viewedStoryUser}
+            onClose={() => setViewedStoryUser(null)}
+            stories={viewedStoryUser.stories || []}
+            user={viewedStoryUser}
+        />
+      )}
+      
+      <MusicSelectionModal
+        isOpen={isMusicModalOpen}
+        onClose={() => setIsMusicModalOpen(false)}
+        onSelectTrack={handleMusicTrackSelected}
+        tracks={MOCK_MUSIC_TRACKS}
+      />
+
+      <NotificationHelpModal 
+        isOpen={isNotificationHelpOpen}
+        onClose={() => setNotificationHelpOpen(false)}
+      />
+
       {selectedPost && userProfile && <PostDetailModal post={selectedPost} onClose={handleClosePostDetail} onToggleLike={handleToggleLike} onAddComment={() => {}} onDeletePost={handleDeletePost} currentUser={userProfile} />}
-      <ProfileModal isOpen={isProfileModalOpen} onClose={closeProfileModal} userProfile={userProfile} userPosts={userPosts} savedPosts={savedPosts} onUpdateProfile={handleUpdateProfile} onUpdateProfilePicture={() => Promise.resolve()} onOpenSettings={openSettingsModal} onStartStoryCreation={() => {}} onOpenStoryViewer={() => {}} onSelectPost={handleSelectPost} onDeletePost={handleDeletePost} />
-      <SettingsModal isOpen={isSettingsModalOpen} onClose={closeSettingsModal} settings={appSettings} onUpdateSettings={setAppSettings} />
+      
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={closeProfileModal} 
+        userProfile={userProfile} 
+        userPosts={userPosts} 
+        savedPosts={savedPosts} 
+        onUpdateProfile={handleUpdateProfile} 
+        onUpdateProfilePicture={handleUpdateProfilePicture} 
+        onOpenSettings={openSettingsModal} 
+        onStartStoryCreation={handleStartStoryCreation} 
+        onOpenStoryViewer={() => userProfile && handleOpenStoryViewer(userProfile)}
+        onSelectPost={handleSelectPost} 
+        onDeletePost={handleDeletePost} 
+       />
+      <SettingsModal 
+        isOpen={isSettingsModalOpen} 
+        onClose={closeSettingsModal} 
+        settings={appSettings} 
+        onUpdateSettings={setAppSettings}
+        onOpenNotificationHelp={() => setNotificationHelpOpen(true)}
+      />
     </div>
   );
 }

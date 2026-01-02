@@ -31,6 +31,7 @@ export interface Story {
   imageUrl: string;
   createdAt: string;
   user: User;
+  musicTrack?: MusicTrack;
 }
 
 export interface UserProfile extends User {

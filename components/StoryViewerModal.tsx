@@ -15,6 +15,7 @@ const STORY_DURATION = 5000; // 5 seconds
 export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onClose, stories, user }) => {
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const timerRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const goToNextStory = () => {
     setCurrentStoryIndex(prevIndex => {
@@ -29,16 +30,32 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({ isOpen, onCl
   const goToPreviousStory = () => {
     setCurrentStoryIndex(prevIndex => Math.max(0, prevIndex - 1));
   };
-
+  
   useEffect(() => {
-    if (isOpen) {
-      timerRef.current = window.setTimeout(goToNextStory, STORY_DURATION);
+    if (!audioRef.current) {
+        audioRef.current = new Audio();
+    }
+
+    if (isOpen && stories.length > 0) {
+        const story = stories[currentStoryIndex];
+        if (story.musicTrack?.track_url) {
+            if (audioRef.current.src !== story.musicTrack.track_url) {
+                audioRef.current.src = story.musicTrack.track_url;
+            }
+            audioRef.current.play().catch(e => console.error("Audio play failed", e));
+        } else {
+            audioRef.current.pause();
+        }
+
+        timerRef.current = window.setTimeout(goToNextStory, STORY_DURATION);
     }
     
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if(audioRef.current) audioRef.current.pause();
     };
   }, [isOpen, currentStoryIndex, stories]);
+
 
   // Preload the next story image for a smoother transition
   useEffect(() => {

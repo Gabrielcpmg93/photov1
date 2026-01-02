@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { UserProfile, Post } from '../types';
-import { IconX, IconSettings, IconCamera, IconBookmark, IconTrendingUp } from './Icons';
+import { IconX, IconSettings, IconCamera, IconBookmark, IconTrendingUp, IconPlusCircle } from './Icons';
 import { ProfilePostThumbnail } from './ProfilePostThumbnail';
 import { PerformanceDashboard } from './PerformanceDashboard';
 
@@ -25,6 +25,7 @@ type ActiveTab = 'posts' | 'saved' | 'performance';
 export const ProfileModal: React.FC<ProfileModalProps> = ({ 
     isOpen, onClose, userProfile, userPosts, savedPosts,
     onUpdateProfile, onUpdateProfilePicture, onOpenSettings, 
+    onStartStoryCreation, onOpenStoryViewer,
     onSelectPost, onDeletePost
 }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -35,6 +36,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const modalRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const storyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (userProfile) { setName(userProfile.name); setBio(userProfile.bio); } }, [userProfile]);
   useEffect(() => { if (isOpen) { setActiveTab('posts'); document.body.style.overflow = 'hidden'; } else { document.body.style.overflow = 'unset'; setIsEditing(false); } return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
@@ -46,8 +48,17 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     const file = event.target.files?.[0];
     if (file) { setIsUploading(true); await onUpdateProfilePicture(file); setIsUploading(false); }
   };
+  
+  const handleStoryFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if(file) {
+          onStartStoryCreation(file);
+      }
+  };
 
   if (!isOpen || !userProfile) return null;
+  
+  const hasStories = userProfile.stories && userProfile.stories.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={handleOverlayClick}>
@@ -62,8 +73,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
           <div className="flex flex-col items-center text-center">
             <div className="relative mb-4">
-               <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-24 h-24 rounded-full" />
-               {isEditing && ( <> <button onClick={() => avatarInputRef.current?.click()} disabled={isUploading} className="absolute bottom-0 right-0 bg-indigo-600 text-white rounded-full p-2 border-4 border-gray-800">{isUploading ? <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div> : <IconCamera className="w-5 h-5" />}</button> <input type="file" ref={avatarInputRef} onChange={handleAvatarFileChange} accept="image/*" className="hidden" /> </>)}
+               <div onClick={hasStories ? onOpenStoryViewer : undefined} className={`w-28 h-28 rounded-full p-1 bg-gradient-to-br ${hasStories ? 'from-purple-500 to-indigo-500 cursor-pointer' : 'from-gray-700 to-gray-700'}`}>
+                    <img src={userProfile.avatarUrl} alt={userProfile.name} className="w-full h-full rounded-full border-4 border-gray-800" />
+               </div>
+               <input type="file" ref={storyInputRef} onChange={handleStoryFileChange} accept="image/*,video/*" className="hidden" />
+               <button onClick={() => storyInputRef.current?.click()} className="absolute -bottom-1 -right-1 bg-white text-gray-800 rounded-full p-1 border-4 border-gray-800"><IconPlusCircle className="w-6 h-6" /></button>
+
+               {isEditing && ( <> <button onClick={() => avatarInputRef.current?.click()} disabled={isUploading} className="absolute -bottom-1 -left-1 bg-indigo-600 text-white rounded-full p-1.5 border-4 border-gray-800">{isUploading ? <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div> : <IconCamera className="w-5 h-5" />}</button> <input type="file" ref={avatarInputRef} onChange={handleAvatarFileChange} accept="image/*" className="hidden" /> </>)}
             </div>
             {isEditing ? <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full text-center text-2xl font-bold bg-white/5 border rounded-lg p-2 mb-2" /> : <h3 className="text-2xl font-bold">{userProfile.name}</h3>}
             {isEditing ? <textarea value={bio} onChange={(e) => setBio(e.target.value)} className="w-full text-center text-gray-300 bg-white/5 border rounded-lg p-2 mt-2" rows={3} /> : <p className="text-gray-400 mt-2">{userProfile.bio}</p>}

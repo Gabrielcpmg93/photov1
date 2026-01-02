@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { Post, UserProfile } from '../types';
-import { IconHeart, IconMessageCircle, IconTrash, IconBookmark, IconShare } from './Icons';
+import { IconHeart, IconMessageCircle, IconTrash, IconBookmark, IconShare, IconGlobe } from './Icons';
+import { TranslationMenu } from './TranslationMenu';
 
 interface PostCardProps {
   post: Post;
@@ -14,6 +15,8 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, onDeletePost, onToggleLike, onToggleSave }) => {
   const isOwner = currentUser && currentUser.id === post.user_id;
+  const [translatedCaption, setTranslatedCaption] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -78,9 +81,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick, currentUser, 
             <span className="font-bold text-sm text-white drop-shadow-md">{post.user.name}</span>
         </div>
 
-        <p className="text-sm text-white/90 mb-3 line-clamp-2 drop-shadow-md">
-          {post.caption}
-        </p>
+        <div className="relative">
+            <p className="text-sm text-white/90 mb-3 line-clamp-2 drop-shadow-md">
+              {isTranslating ? 'Traduzindo...' : (translatedCaption || post.caption)}
+            </p>
+            {translatedCaption && (
+                <button onClick={(e) => { e.stopPropagation(); setTranslatedCaption(null); }} className="text-xs text-indigo-300 hover:underline mb-2">Mostrar original</button>
+            )}
+            <TranslationMenu
+                textToTranslate={post.caption}
+                onTranslateStart={() => setIsTranslating(true)}
+                onTranslateComplete={(translatedText) => {
+                    setTranslatedCaption(translatedText);
+                    setIsTranslating(false);
+                }}
+                buttonClassName="absolute -top-1 -right-1"
+            />
+        </div>
         
         <div className="flex items-center space-x-4 text-white/80 border-t border-white/20 pt-3">
           <button onClick={handleLike} className="flex items-center space-x-1.5 group/like focus:outline-none transition-transform transform hover:scale-105">

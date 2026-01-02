@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import type { Post, Comment, UserProfile, User, NewPost, Story } from '../types';
+import type { Post, Comment, UserProfile, User, NewPost, Story, LiveSession, MusicTrack } from '../types';
 
 const supabaseUrl = 'https://ndkpltjwevefwnnhiiqv.supabase.co';
 const supabaseAnonKey = 'sb_publishable_3WEoDUcdTyaf3ZdWCQjVeA_I3htXKHw';
@@ -163,13 +163,56 @@ export const updateUserProfilePicture = async (userId: string, imageFile: File, 
     return data?.avatar_url ?? null;
 };
 
-export const addStory = async (userId: string, storyFile: File, user: User): Promise<Story | null> => {
+export const addStory = async (userId: string, storyFile: File, user: User, musicTrack?: MusicTrack): Promise<Story | null> => {
     const storyUrl = await uploadFile('stories', storyFile);
     if (!storyUrl) return null;
+    // In a real app, you would store musicTrack info in the database.
+    // Here we just add it to the returned object for client-side use.
     const { data, error } = await supabase.from('stories').insert({ user_id: userId, image_url: storyUrl }).select(`*`).single();
     if(error) { console.error('Error adding story:', error.message); return null; }
-    return { id: data.id, imageUrl: data.image_url, createdAt: data.created_at, user: user };
+    return { id: data.id, imageUrl: data.image_url, createdAt: data.created_at, user: user, musicTrack };
 };
+
+// --- Live Sessions (Mock Implementation) ---
+const MOCK_SESSIONS: LiveSession[] = [
+    {
+        id: 'live_1',
+        title: 'Falando sobre as últimas tendências de design',
+        host: { id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana', isHost: true, isMuted: true },
+        speakers: [{ id: 'user_2', name: 'Ana', avatarUrl: 'https://i.pravatar.cc/150?u=ana', isHost: true, isMuted: true }],
+        listeners: [
+            { id: 'user_3', name: 'Carlos', avatarUrl: 'https://i.pravatar.cc/150?u=carlos' },
+            { id: 'user_4', name: 'Beatriz', avatarUrl: 'https://i.pravatar.cc/150?u=beatriz' }
+        ],
+        likes: 12,
+        chat: [],
+        shareUrl: 'https://example.com/live/1'
+    }
+];
+
+export const getActiveLiveSessions = async (): Promise<LiveSession[]> => {
+    // In a real app, this would fetch from your backend.
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+    return MOCK_SESSIONS;
+};
+
+export const createLiveSession = async (title: string, host: UserProfile): Promise<LiveSession | null> => {
+    const hostParticipant = { ...host, isHost: true, isMuted: true, isSpeaker: true };
+    const newSession: LiveSession = {
+        id: `live_${Date.now()}`,
+        title,
+        host: hostParticipant,
+        speakers: [hostParticipant],
+        listeners: [],
+        likes: 0,
+        chat: [],
+        shareUrl: `https://example.com/live/${Date.now()}`,
+    };
+    // In a real app, this would be saved to the backend.
+    MOCK_SESSIONS.unshift(newSession);
+    return newSession;
+};
+
 
 // Saved Posts (using localStorage for simulation)
 export const getSavedPostIds = (): string[] => JSON.parse(localStorage.getItem('saved_posts') || '[]');

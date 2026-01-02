@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Post, UserProfile } from '../types';
 import { IconX, IconHeart, IconMessageCircle, IconTrash } from './Icons';
+import { TranslationMenu } from './TranslationMenu';
 
 interface PostDetailModalProps {
   post: Post;
@@ -12,8 +13,42 @@ interface PostDetailModalProps {
   currentUser: UserProfile;
 }
 
+const CommentItem: React.FC<{ comment: Post['commentList'][number] }> = ({ comment }) => {
+    const [translatedText, setTranslatedText] = useState<string | null>(null);
+    const [isTranslating, setIsTranslating] = useState(false);
+
+    return (
+        <div className="flex items-start">
+            <img src={comment.user.avatarUrl} alt={comment.user.name} className="w-8 h-8 rounded-full mr-3 mt-1" />
+            <div className="flex-1">
+                <span className="font-bold text-sm text-white">{comment.user.name}</span>
+                <div className="relative">
+                    <p className="text-sm text-gray-300 pr-8">
+                        {isTranslating ? 'Traduzindo...' : (translatedText || comment.text)}
+                    </p>
+                    {translatedText && (
+                        <button onClick={(e) => { e.stopPropagation(); setTranslatedText(null); }} className="text-xs text-indigo-300 hover:underline mt-1">Mostrar original</button>
+                    )}
+                    <TranslationMenu
+                        textToTranslate={comment.text}
+                        onTranslateStart={() => setIsTranslating(true)}
+                        onTranslateComplete={(text) => {
+                            setTranslatedText(text);
+                            setIsTranslating(false);
+                        }}
+                        buttonClassName="absolute top-0 right-0"
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose, onToggleLike, onAddComment, onDeletePost, currentUser }) => {
   const [newComment, setNewComment] = useState('');
+  const [translatedCaption, setTranslatedCaption] = useState<string | null>(null);
+  const [isTranslatingCaption, setIsTranslatingCaption] = useState(false);
+  
   const modalRef = useRef<HTMLDivElement>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +74,6 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
   }, [onClose]);
   
   useEffect(() => {
-    // Scroll to the bottom of the comments when a new one is added
     commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [post.commentList]);
 
@@ -94,9 +128,23 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <div className="flex items-start">
                  <img src={post.user.avatarUrl} alt={post.user.name} className="w-8 h-8 rounded-full mr-3 mt-1" />
-                 <div>
+                 <div className="flex-1">
                     <span className="font-bold text-sm text-white">{post.user.name}</span>
-                    <p className="text-sm text-gray-300">{post.caption}</p>
+                    <div className="relative">
+                        <p className="text-sm text-gray-300 pr-8">{isTranslatingCaption ? 'Traduzindo...' : (translatedCaption || post.caption)}</p>
+                         {translatedCaption && (
+                            <button onClick={() => setTranslatedCaption(null)} className="text-xs text-indigo-300 hover:underline mt-1">Mostrar original</button>
+                        )}
+                        <TranslationMenu 
+                            textToTranslate={post.caption} 
+                            onTranslateStart={() => setIsTranslatingCaption(true)}
+                            onTranslateComplete={(text) => {
+                                setTranslatedCaption(text);
+                                setIsTranslatingCaption(false);
+                            }}
+                            buttonClassName="absolute top-0 right-0"
+                        />
+                    </div>
                  </div>
             </div>
 
@@ -104,13 +152,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({ post, onClose,
             <div className="space-y-4">
               {post.commentList && post.commentList.length > 0 ? (
                 post.commentList.map(comment => (
-                  <div key={comment.id} className="flex items-start">
-                    <img src={comment.user.avatarUrl} alt={comment.user.name} className="w-8 h-8 rounded-full mr-3 mt-1" />
-                    <div>
-                      <span className="font-bold text-sm text-white">{comment.user.name}</span>
-                      <p className="text-sm text-gray-300">{comment.text}</p>
-                    </div>
-                  </div>
+                  <CommentItem key={comment.id} comment={comment} />
                 ))
               ) : (
                 <p className="text-sm text-gray-500 text-center py-4">Nenhum comentário ainda.</p>

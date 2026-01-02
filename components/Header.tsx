@@ -22,7 +22,7 @@ export const Header: React.FC<HeaderProps> = ({ onNewPostClick, onProfileClick }
               className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 rounded-lg text-white font-semibold transition-all duration-300 shadow-lg shadow-indigo-500/30 focus:outline-none focus:ring-4 focus:ring-indigo-500/50 transform hover:scale-105"
             >
               <IconPlus className="w-5 h-5" />
-              <span className="hidden sm:inline">Nova Postagem</span>
+              <span className="hidden sm:inline">Criar</span>
             </button>
             <button
               onClick={onProfileClick}
