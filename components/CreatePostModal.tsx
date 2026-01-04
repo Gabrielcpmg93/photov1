@@ -61,7 +61,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [showTextEditor, setShowTextEditor] = useState(false);
   const [emojiOverlay, setEmojiOverlay] = useState<EmojiOverlay | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [dragInfo, setDragInfo] = useState<{ target: 'text' | 'emoji'; offsetX: number; offsetY: number } | null>(null);
+  const [dragInfo, setDragInfo] = useState<{ target: 'text' | 'emoji' } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -175,23 +175,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
   const handleDragStart = (e: React.PointerEvent, target: 'text' | 'emoji') => {
     e.preventDefault();
-    const el = e.currentTarget as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    setDragInfo({ target, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top, });
-    el.setPointerCapture(e.pointerId);
+    setDragInfo({ target });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const handleDragMove = (e: React.PointerEvent) => {
-    if (!dragInfo || !imageContainerRef.current) return;
+    if (!dragInfo) return;
     e.preventDefault();
-    const containerRect = imageContainerRef.current.getBoundingClientRect();
-    let newX = e.clientX - containerRect.left - dragInfo.offsetX;
-    let newY = e.clientY - containerRect.top - dragInfo.offsetY;
 
     if (dragInfo.target === 'text' && textOverlay) {
-      setTextOverlay(p => p ? { ...p, x: newX + (e.currentTarget as HTMLElement).offsetWidth / 2, y: newY + (e.currentTarget as HTMLElement).offsetHeight / 2 } : null);
-    } else if(emojiOverlay) {
-      setEmojiOverlay(p => p ? { ...p, x: newX + (e.currentTarget as HTMLElement).offsetWidth / 2, y: newY + (e.currentTarget as HTMLElement).offsetHeight / 2 } : null);
+        setTextOverlay(p => p ? { ...p, x: p.x + e.movementX, y: p.y + e.movementY } : null);
+    } else if (dragInfo.target === 'emoji' && emojiOverlay) {
+        setEmojiOverlay(p => p ? { ...p, x: p.x + e.movementX, y: p.y + e.movementY } : null);
     }
   };
 
