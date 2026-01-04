@@ -83,6 +83,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     return () => { document.body.style.overflow = 'unset'; window.removeEventListener('keydown', handleEsc); };
   }, [isOpen, onClose]);
   
+  useEffect(() => {
+    if (step === 'editImage' && postType === 'text' && textContent && !textOverlay && imageContainerRef.current) {
+        const container = imageContainerRef.current;
+        const containerWidth = container.offsetWidth;
+        const containerHeight = container.offsetHeight;
+        setTextOverlay({
+            text: textContent,
+            color: '#FFFFFF',
+            fontFamily: 'Inter',
+            size: 48,
+            x: containerWidth / 2,
+            y: containerHeight / 2,
+        });
+    }
+  }, [step, postType, textContent, textOverlay]);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) { setError(null); setImageFile(file); setPreviewUrl(URL.createObjectURL(file)); setStep('editImage'); }
@@ -103,9 +119,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       const bgFile = await generateGradientBackground();
       setImageFile(bgFile);
       setPreviewUrl(URL.createObjectURL(bgFile));
-      const containerWidth = imageContainerRef.current?.offsetWidth || 300;
-      const containerHeight = imageContainerRef.current?.offsetHeight || 300;
-      setTextOverlay({ text: textContent, color: '#FFFFFF', fontFamily: 'Inter', size: 48, x: containerWidth / 2, y: containerHeight / 2 });
       setIsProcessing(false);
       setStep('editImage');
   };
